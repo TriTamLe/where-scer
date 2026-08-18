@@ -2,6 +2,8 @@ import { geoMercator, geoPath } from 'd3-geo'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
+import type { MapProps } from '#/components/map-types.ts'
+
 type AdministrativeProperties = {
   areaKm2?: number
   code: string
@@ -36,7 +38,7 @@ type TooltipState = {
   y: number
 }
 
-type AdministrativeMapProps = {
+type AdministrativeMapProps = MapProps & {
   ariaLabel: string
   dataUrl: string
   description: string
@@ -53,23 +55,33 @@ const INSET_GAP = 14
 const INSET_X = MAP_WIDTH - INSET_WIDTH - 22
 
 function AdministrativeMap({
+  activeFill,
+  activeStroke,
+  activeStrokeWidth,
+  activeValues,
   ariaLabel,
   dataUrl,
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
   description,
+  onChange,
   title,
   variant
 }: AdministrativeMapProps) {
   const id = useId()
   const [containerRef, width] = useElementWidth<HTMLDivElement>()
   const [data, status, error] = useDeferredGeoData(dataUrl, containerRef)
-  const [selectedCode, setSelectedCode] = useState<string>('')
   const [hoveredCode, setHoveredCode] = useState<string>('')
   const [focusedCode, setFocusedCode] = useState<string>('')
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
 
-  const selectedFeature = data?.features.find(
-    (feature) => feature.properties.code === selectedCode
-  )
+  const selectedFeatures = activeValues.flatMap((code) => {
+    const feature = data?.features.find(
+      (candidate) => candidate.properties.code === code
+    )
+    return feature ? [feature] : []
+  })
   const presentation = useMemo(
     () => createMapPresentation(data, variant),
     [data, variant]
@@ -82,10 +94,18 @@ function AdministrativeMap({
     () => projectInsetPaths(presentation?.insets ?? []),
     [presentation]
   )
-  const outlinedMainlandPath = mainlandPaths.find(
-    ({ feature }) => feature.properties.code === (focusedCode || selectedCode)
+  const outlinedMainlandPaths = mainlandPaths.filter(({ feature }) =>
+    activeValues.includes(feature.properties.code)
   )
   const isWardMap = variant === 'ward'
+
+  function toggleActiveValue(value: string) {
+    onChange(
+      activeValues.includes(value)
+        ? activeValues.filter((activeValue) => activeValue !== value)
+        : [...activeValues, value]
+    )
+  }
 
   function showTooltip(
     event: React.PointerEvent<SVGElement>,
@@ -153,29 +173,35 @@ function AdministrativeMap({
             {mainlandPaths.map(({ feature, path }) => (
               <RegionPath
                 key={`mainland-${feature.properties.code}`}
+                activeFill={activeFill}
+                activeStroke={activeStroke}
+                activeStrokeWidth={activeStrokeWidth}
+                defaultFill={defaultFill}
+                defaultStroke={defaultStroke}
+                defaultStrokeWidth={defaultStrokeWidth}
                 feature={feature}
                 focused={feature.properties.code === focusedCode}
                 hovered={feature.properties.code === hoveredCode}
                 path={path}
-                selected={feature.properties.code === selectedCode}
-                wardMap={isWardMap}
+                selected={activeValues.includes(feature.properties.code)}
                 onFocusChange={setFocusedCode}
                 onHoverChange={setHoveredCode}
-                onSelect={setSelectedCode}
+                onSelect={toggleActiveValue}
                 onTooltipHide={hideTooltip}
                 onTooltipShow={showTooltip}
               />
             ))}
-            {outlinedMainlandPath ? (
+            {outlinedMainlandPaths.map(({ feature, path }) => (
               <path
                 aria-hidden="true"
-                d={outlinedMainlandPath.path}
+                d={path}
                 fill="none"
+                key={`active-${feature.properties.code}`}
                 pointerEvents="none"
-                stroke="var(--ring)"
-                strokeWidth={isWardMap ? 2.4 : 3}
+                stroke={activeStroke}
+                strokeWidth={activeStrokeWidth}
               />
-            ) : null}
+            ))}
             {insetPaths.map(({ inset, path }, index) => (
               <MapInset
                 key={`inset-${inset.feature.properties.code}`}
@@ -183,13 +209,18 @@ function AdministrativeMap({
                 inset={inset}
                 path={path}
                 total={insetPaths.length}
-                wardMap={isWardMap}
-                selectedCode={selectedCode}
+                activeFill={activeFill}
+                activeStroke={activeStroke}
+                activeStrokeWidth={activeStrokeWidth}
+                activeValues={activeValues}
+                defaultFill={defaultFill}
+                defaultStroke={defaultStroke}
+                defaultStrokeWidth={defaultStrokeWidth}
                 hoveredCode={hoveredCode}
                 focusedCode={focusedCode}
                 onFocusChange={setFocusedCode}
                 onHoverChange={setHoveredCode}
-                onSelect={setSelectedCode}
+                onSelect={toggleActiveValue}
                 onTooltipHide={hideTooltip}
                 onTooltipShow={showTooltip}
               />
@@ -208,10 +239,18 @@ function AdministrativeMap({
             className="mt-2 min-h-11 w-full rounded-md border bg-background px-3 text-sm text-foreground"
             disabled={!data}
             id={`${id}-select`}
-            value={selectedCode}
-            onChange={(event) => setSelectedCode(event.target.value)}
+            multiple
+            size={Math.min(data?.features.length ?? 4, 6)}
+            value={activeValues}
+            onChange={(event) =>
+              onChange(
+                Array.from(
+                  event.currentTarget.selectedOptions,
+                  (option) => option.value
+                )
+              )
+            }
           >
-            <option value="">Chọn một đơn vị trên bản đồ</option>
             {data?.features.map((feature) => (
               <option
                 key={feature.properties.code}
@@ -224,24 +263,32 @@ function AdministrativeMap({
         </div>
 
         <div aria-live="polite" className="rounded-lg bg-muted p-4">
-          {selectedFeature ? (
-            <>
+          {selectedFeatures.length > 0 ? (
+            <div>
               <p className="text-sm font-semibold">
-                {selectedFeature.properties.fullName}
+                Đã chọn {selectedFeatures.length} đơn vị
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Mã hành chính: {selectedFeature.properties.code}
-              </p>
-              {selectedFeature.properties.areaKm2 ? (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Diện tích: {formatArea(selectedFeature.properties.areaKm2)}{' '}
-                  km²
-                </p>
-              ) : null}
-            </>
+              <ul className="mt-2 grid gap-2">
+                {selectedFeatures.map((feature) => (
+                  <li key={feature.properties.code} className="text-sm">
+                    <span className="font-medium">
+                      {feature.properties.fullName}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {' '}
+                      — {feature.properties.code}
+                      {feature.properties.areaKm2
+                        ? ` · ${formatArea(feature.properties.areaKm2)} km²`
+                        : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Chọn một vùng trên bản đồ hoặc từ danh sách để xem thông tin.
+              Chọn một hoặc nhiều vùng trên bản đồ hoặc từ danh sách để xem
+              thông tin.
             </p>
           )}
         </div>
@@ -251,12 +298,17 @@ function AdministrativeMap({
 }
 
 type RegionPathProps = {
+  activeFill: string
+  activeStroke: string
+  activeStrokeWidth: number
+  defaultFill: string
+  defaultStroke: string
+  defaultStrokeWidth: number
   feature: AdministrativeFeature
   focused: boolean
   hovered: boolean
   path: string
   selected: boolean
-  wardMap: boolean
   onFocusChange: (code: string) => void
   onHoverChange: (code: string) => void
   onSelect: (code: string) => void
@@ -268,12 +320,17 @@ type RegionPathProps = {
 }
 
 function RegionPath({
+  activeFill,
+  activeStroke,
+  activeStrokeWidth,
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
   feature,
   focused,
   hovered,
   path,
   selected,
-  wardMap,
   onFocusChange,
   onHoverChange,
   onSelect,
@@ -288,16 +345,10 @@ function RegionPath({
       aria-pressed={selected}
       className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
       d={path}
-      fill={
-        selected
-          ? 'var(--primary)'
-          : hovered
-            ? 'var(--secondary-muted)'
-            : 'var(--secondary-soft)'
-      }
+      fill={selected ? activeFill : hovered ? defaultStroke : defaultFill}
       role="button"
-      stroke={focused ? 'var(--ring)' : 'var(--border)'}
-      strokeWidth={focused ? (wardMap ? 2.4 : 3) : wardMap ? 1.2 : 1.7}
+      stroke={focused ? activeStroke : defaultStroke}
+      strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
       style={{ outline: 'none' }}
       tabIndex={0}
       onBlur={() => {
@@ -329,6 +380,13 @@ function RegionPath({
 }
 
 type MapInsetProps = {
+  activeFill: string
+  activeStroke: string
+  activeStrokeWidth: number
+  activeValues: readonly string[]
+  defaultFill: string
+  defaultStroke: string
+  defaultStrokeWidth: number
   focusedCode: string
   hoveredCode: string
   index: number
@@ -339,20 +397,23 @@ type MapInsetProps = {
   onTooltipHide: () => void
   onTooltipShow: RegionPathProps['onTooltipShow']
   path: string
-  selectedCode: string
   total: number
-  wardMap: boolean
 }
 
 function MapInset({
+  activeFill,
+  activeStroke,
+  activeStrokeWidth,
+  activeValues,
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
   focusedCode,
   hoveredCode,
   index,
   inset,
   path,
-  selectedCode,
   total,
-  wardMap,
   onFocusChange,
   onHoverChange,
   onSelect,
@@ -362,7 +423,7 @@ function MapInset({
   const { feature, label } = inset
   const { code } = feature.properties
   const frame = insetFrame(index, total)
-  const selected = code === selectedCode
+  const selected = activeValues.includes(code)
   const hovered = code === hoveredCode
   const focused = code === focusedCode
 
@@ -372,18 +433,12 @@ function MapInset({
         aria-label={`${label}, chọn ${feature.properties.fullName}, mã ${code}`}
         aria-pressed={selected}
         className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
-        fill={
-          selected
-            ? 'var(--primary-soft)'
-            : hovered
-              ? 'var(--secondary-soft)'
-              : 'var(--surface-elevated)'
-        }
+        fill={selected ? activeFill : hovered ? defaultStroke : defaultFill}
         height={frame.height}
         rx="12"
         role="button"
-        stroke={focused ? 'var(--ring)' : 'var(--secondary-muted)'}
-        strokeWidth={focused ? '3' : '2'}
+        stroke={focused ? activeStroke : defaultStroke}
+        strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
         style={{ outline: 'none' }}
         tabIndex={0}
         width={frame.width}
@@ -428,10 +483,10 @@ function MapInset({
       <path
         aria-hidden="true"
         d={path}
-        fill={selected ? 'var(--primary)' : 'var(--secondary)'}
+        fill={selected ? activeFill : defaultFill}
         pointerEvents="none"
-        stroke={focused ? 'var(--ring)' : 'var(--border)'}
-        strokeWidth={focused ? (wardMap ? 2.4 : 3) : wardMap ? 1.2 : 1.7}
+        stroke={focused ? activeStroke : defaultStroke}
+        strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
       />
     </g>
   )

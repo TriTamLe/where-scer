@@ -1,27 +1,48 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 
-import { AdministrativeMap } from '#/components/administrative-map.tsx'
+import { DanangMap } from '#/components/danang-map.tsx'
+import { VietnamMap } from '#/components/vietnam-map.tsx'
 import { WorldMap } from '#/components/world-map.tsx'
 
 export const Route = createFileRoute('/')({ component: HomePage })
 
 function HomePage() {
+  const [activeCountries, setActiveCountries] = useState<string[]>([])
+  const [activeProvinces, setActiveProvinces] = useState<string[]>([])
+  const [activeDanangWards, setActiveDanangWards] = useState<string[]>([])
+
   return (
     <main className="mx-auto grid w-full max-w-[1800px] gap-6 p-2 sm:p-4 md:p-6">
-      <WorldMap />
-      <AdministrativeMap
-        ariaLabel="Bản đồ hành chính Việt Nam gồm 34 tỉnh và thành phố"
-        dataUrl="/data/administrative-maps/vietnam-provinces.geojson"
-        description="Chọn một tỉnh hoặc thành phố để xem mã hành chính và diện tích."
-        title="Bản đồ hành chính Việt Nam"
-        variant="province"
+      <WorldMap
+        activeFill="var(--primary)"
+        activeStroke="var(--ring)"
+        activeStrokeWidth={2}
+        activeValues={activeCountries}
+        defaultFill="var(--secondary-soft)"
+        defaultStroke="var(--secondary-muted)"
+        defaultStrokeWidth={1}
+        onChange={setActiveCountries}
       />
-      <AdministrativeMap
-        ariaLabel="Bản đồ hành chính Đà Nẵng gồm các phường và xã hiện hành"
-        dataUrl="/data/administrative-maps/da-nang-wards.geojson"
-        description="Phạm vi Đà Nẵng hiện hành sau sáp nhập. Chọn một phường hoặc xã để xem thông tin."
-        title="Bản đồ hành chính Đà Nẵng"
-        variant="ward"
+      <VietnamMap
+        activeFill="var(--primary)"
+        activeStroke="var(--ring)"
+        activeStrokeWidth={3}
+        activeValues={activeProvinces}
+        defaultFill="var(--secondary-soft)"
+        defaultStroke="var(--border)"
+        defaultStrokeWidth={1.7}
+        onChange={setActiveProvinces}
+      />
+      <DanangMap
+        activeFill="var(--primary)"
+        activeStroke="var(--ring)"
+        activeStrokeWidth={2.4}
+        activeValues={activeDanangWards}
+        defaultFill="var(--secondary-soft)"
+        defaultStroke="var(--border)"
+        defaultStrokeWidth={1.2}
+        onChange={setActiveDanangWards}
       />
     </main>
   )

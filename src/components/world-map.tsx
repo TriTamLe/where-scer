@@ -14,6 +14,8 @@ import type {
 } from 'topojson-specification'
 import worldAtlas from 'world-atlas/countries-110m.json'
 
+import type { MapProps } from '#/components/map-types.ts'
+
 type CountryProperties = {
   name?: string
 }
@@ -56,10 +58,18 @@ const countriesByChartKey = new Map(
   ])
 )
 
-function WorldMap() {
+function WorldMap({
+  activeFill,
+  activeStroke,
+  activeStrokeWidth,
+  activeValues,
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
+  onChange
+}: MapProps) {
   const isDesktop = useDesktopViewport()
   const [hoveredId, setHoveredId] = useState<string | number | undefined>()
-  const [selectedId, setSelectedId] = useState<string | number | undefined>()
   const [rotation, setRotation] = useState<Rotation>({
     latitude: -18,
     longitude: 0
@@ -74,6 +84,25 @@ function WorldMap() {
   } | null>(null)
   const isDragging = useRef(false)
   const didDrag = useRef(false)
+  const activeCountries = useMemo(
+    () =>
+      countries.filter(
+        (country) =>
+          country.id !== undefined && activeValues.includes(String(country.id))
+      ),
+    [activeValues]
+  )
+
+  const toggleActiveValue = useCallback(
+    (value: string) => {
+      onChange(
+        activeValues.includes(value)
+          ? activeValues.filter((activeValue) => activeValue !== value)
+          : [...activeValues, value]
+      )
+    },
+    [activeValues, onChange]
+  )
 
   const chart = useMemo(
     () =>
@@ -106,13 +135,43 @@ function WorldMap() {
               return projection
             },
             fill: (country) =>
-              selectedId !== undefined && country.id === selectedId
-                ? 'var(--primary)'
+              country.id !== undefined &&
+              activeValues.includes(String(country.id))
+                ? activeFill
                 : hoveredId !== undefined && country.id === hoveredId
-                  ? 'var(--secondary-muted)'
-                  : 'var(--secondary-soft)',
-            stroke: 'var(--secondary-muted)',
-            strokeWidth: 1
+                  ? defaultStroke
+                  : defaultFill,
+            stroke: (country) =>
+              country.id !== undefined &&
+              activeValues.includes(String(country.id))
+                ? activeStroke
+                : defaultStroke,
+            strokeWidth: defaultStrokeWidth
+          }),
+          geoShape(activeCountries, {
+            className: 'pointer-events-none',
+            id: 'active-countries',
+            key: (country) => country.id ?? country.properties.name,
+            projection: ({ chart: bounds }) => {
+              const projection = isDesktop
+                ? geoEqualEarth()
+                : geoOrthographic()
+                    .clipAngle(90)
+                    .rotate([rotation.longitude, rotation.latitude])
+
+              projection.fitExtent(
+                [
+                  [bounds.x + 12, bounds.y + 12],
+                  [bounds.x + bounds.width - 12, bounds.y + bounds.height - 12]
+                ],
+                SPHERE
+              )
+
+              return projection
+            },
+            fill: 'none',
+            stroke: activeStroke,
+            strokeWidth: activeStrokeWidth
           })
         ],
         x: null,
@@ -139,7 +198,19 @@ function WorldMap() {
           }
         }
       }),
-    [hoveredId, isDesktop, rotation, selectedId]
+    [
+      activeFill,
+      activeStroke,
+      activeStrokeWidth,
+      activeCountries,
+      activeValues,
+      defaultFill,
+      defaultStroke,
+      defaultStrokeWidth,
+      hoveredId,
+      isDesktop,
+      rotation
+    ]
   )
 
   const handleFocusChange = useCallback(
@@ -152,9 +223,9 @@ function WorldMap() {
   const handleSelect = useCallback(
     (point: (typeof countries)[number] | null) => {
       if (isDragging.current) return
-      setSelectedId(point?.id)
+      if (point?.id !== undefined) toggleActiveValue(String(point.id))
     },
-    []
+    [toggleActiveValue]
   )
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
@@ -186,7 +257,6 @@ function WorldMap() {
       didDrag.current = true
     }
 
-    setSelectedId(undefined)
     setHoveredId(undefined)
     setRotation({
       latitude: clamp(dragState.latitude - deltaY * 0.35, -70, 70),
@@ -213,14 +283,13 @@ function WorldMap() {
       // resolver finds no match. Prevent its click handler from receiving
       // clicks on the ocean or other empty map areas.
       event.stopPropagation()
-      setSelectedId(undefined)
       return
     }
 
     if (isDesktop) return
 
     event.stopPropagation()
-    setSelectedId(country.id)
+    if (country.id !== undefined) toggleActiveValue(String(country.id))
   }
 
   return (
