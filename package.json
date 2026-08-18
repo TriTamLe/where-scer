@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
+    "generate:administrative-maps": "node scripts/generate-administrative-maps.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint",
