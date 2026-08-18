@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tam-portfolio",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "secrets": {
+    "required": [
+      "NOTION_TOKEN",
+      "NOTION_PORTFOLIO_PAGE_ID",
+      "NOTION_CASE_STUDIES_DATA_SOURCE_ID",
+      "NOTION_CASE_STUDY_CONTENT_DATA_SOURCE_ID",
+      "NOTION_EXPERIENCE_DATA_SOURCE_ID",
+      "NOTION_EXPERIENCE_CONTENT_DATA_SOURCE_ID",
+      "NOTION_TECH_STACK_DATA_SOURCE_ID",
+      "NOTION_USER_DATABASE_SOURCE_ID",
+      "NOTION_CONNECTION_LINK_DATABASE_SOURCE_ID",
+      "NOTION_EDUCATION_DATA_SOURCE_ID",
+      "NOTION_RESUME_EDUCATION_DATA_SOURCE_ID",
+      "NOTION_WORK_EXPERIENCE_DATA_SOURCE_ID",
+      "NOTION_HIGHLIGHT_PROJECTS_DATA_SOURCE_ID",
+      "NOTION_IMPACT_DATA_SOURCE_ID",
+      "NOTION_SKILLS_DATA_SOURCE_ID",
+      "MY_USERNAME"
+    ]
+  },
+  "main": "@tanstack/react-start/server-entry"
+}
