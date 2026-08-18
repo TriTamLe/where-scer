@@ -14,7 +14,12 @@ import type {
 } from 'topojson-specification'
 import worldAtlas from 'world-atlas/countries-110m.json'
 
+import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
+import {
+  getInterestFill,
+  useSelectionInterest
+} from '#/hooks/use-selection-interest.ts'
 
 type CountryProperties = {
   name?: string
@@ -51,6 +56,9 @@ const countries = countryCollection.features.map((country) => ({
     name: country.properties.name ?? 'Unknown country'
   }
 }))
+const WORLD_MAP_VALUES = countries.flatMap((country) =>
+  country.id === undefined ? [] : [String(country.id)]
+)
 const countriesByChartKey = new Map(
   countries.map((country) => [
     `countries:${chartKey(country.id ?? country.properties.name)}`,
@@ -59,14 +67,15 @@ const countriesByChartKey = new Map(
 )
 
 function WorldMap({
-  activeFill,
   activeStroke,
   activeStrokeWidth,
   activeValues,
+  densityFills,
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
-  onChange
+  onChange,
+  otherSelectionCounts
 }: MapProps) {
   const isDesktop = useDesktopViewport()
   const [hoveredId, setHoveredId] = useState<string | number | undefined>()
@@ -84,6 +93,11 @@ function WorldMap({
   } | null>(null)
   const isDragging = useRef(false)
   const didDrag = useRef(false)
+  const selectionInterest = useSelectionInterest({
+    activeValues,
+    optionCount: WORLD_MAP_VALUES.length,
+    otherSelectionCounts
+  })
   const activeCountries = useMemo(
     () =>
       countries.filter(
@@ -134,13 +148,14 @@ function WorldMap({
 
               return projection
             },
-            fill: (country) =>
-              country.id !== undefined &&
-              activeValues.includes(String(country.id))
-                ? activeFill
-                : hoveredId !== undefined && country.id === hoveredId
-                  ? defaultStroke
-                  : defaultFill,
+            fill: (country) => {
+              const code = country.id === undefined ? '' : String(country.id)
+              const interest = selectionInterest.getInterest(code)
+
+              return interest.level === null && hoveredId === country.id
+                ? defaultStroke
+                : getInterestFill(interest, densityFills, defaultFill)
+            },
             stroke: (country) =>
               country.id !== undefined &&
               activeValues.includes(String(country.id))
@@ -194,22 +209,31 @@ function WorldMap({
             'rounded-md border border-border bg-popover px-3 py-2 text-sm font-semibold text-popover-foreground shadow-md',
           format: (point) => {
             const { flag, name } = point.datum.properties
-            return flag ? `${flag} ${name}` : name
+            const code = String(point.datum.id)
+            const interest = selectionInterest.getInterest(code)
+            const heading = flag ? `${flag} ${name}` : name
+            const count =
+              interest.count > 0
+                ? `${interest.count} thành viên đã chọn${activeValues.includes(code) ? ' (bao gồm bạn)' : ''} · Mức ${interest.level} (${formatLift(interest.lift)}× trung bình)`
+                : 'Chưa có thành viên chọn'
+
+            return `${heading}\nMã: ${code}\n${count}`
           }
         }
       }),
     [
-      activeFill,
       activeStroke,
       activeStrokeWidth,
       activeCountries,
       activeValues,
+      densityFills,
       defaultFill,
       defaultStroke,
       defaultStrokeWidth,
       hoveredId,
       isDesktop,
-      rotation
+      rotation,
+      selectionInterest
     ]
   )
 
@@ -293,26 +317,32 @@ function WorldMap({
   }
 
   return (
-    <div
-      className="relative mx-auto min-h-88 w-full max-w-[1800px] touch-none overflow-hidden rounded-xl border bg-background shadow-md md:min-h-[min(76vh,52rem)]"
-      data-projection={isDesktop ? 'equal-earth' : 'globe'}
-      onClickCapture={handleTapSelection}
-      onPointerCancel={handlePointerEnd}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerEnd}
-    >
-      <Chart
-        ariaDescription="Explore country names and flags. On smaller screens, drag the globe to rotate it."
-        ariaLabel="Interactive world map"
-        aspectRatio={isDesktop ? 2.15 : 1}
-        className="block w-full"
-        definition={chart}
-        initialWidth={1440}
-        onFocusChange={(point) => handleFocusChange(point?.datum ?? null)}
-        onSelect={(point) => handleSelect(point?.datum ?? null)}
+    <section aria-label="Bản đồ thế giới">
+      <div
+        className="relative mx-auto min-h-88 w-full max-w-[1800px] touch-none overflow-hidden rounded-xl border bg-background shadow-md md:min-h-[min(76vh,52rem)]"
+        data-projection={isDesktop ? 'equal-earth' : 'globe'}
+        onClickCapture={handleTapSelection}
+        onPointerCancel={handlePointerEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+      >
+        <Chart
+          ariaDescription="Explore country names and flags. On smaller screens, drag the globe to rotate it."
+          ariaLabel="Interactive world map"
+          aspectRatio={isDesktop ? 2.15 : 1}
+          className="block w-full"
+          definition={chart}
+          initialWidth={1440}
+          onFocusChange={(point) => handleFocusChange(point?.datum ?? null)}
+          onSelect={(point) => handleSelect(point?.datum ?? null)}
+        />
+      </div>
+      <MapDensityLegend
+        densityFills={densityFills}
+        legendItems={selectionInterest.legendItems}
       />
-    </div>
+    </section>
   )
 }
 
@@ -392,4 +422,10 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
-export { WorldMap }
+function formatLift(lift: number) {
+  return new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: 2
+  }).format(lift)
+}
+
+export { WORLD_MAP_VALUES, WorldMap }

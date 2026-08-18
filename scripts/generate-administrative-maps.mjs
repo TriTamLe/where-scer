@@ -7,6 +7,7 @@ const UPSTREAM_COMMIT = 'cd58063299585146ded3981f2272946ef19ced54'
 const TREE_URL = `https://api.github.com/repos/thanglequoc/vietnamese-provinces-database/git/trees/${UPSTREAM_COMMIT}?recursive=1`
 const RAW_URL = `https://raw.githubusercontent.com/thanglequoc/vietnamese-provinces-database/${UPSTREAM_COMMIT}`
 const OUTPUT_DIRECTORY = resolve('public/data/administrative-maps')
+const VALUES_OUTPUT = resolve('src/data/administrative-map-values.ts')
 
 const tree = await fetchJson(TREE_URL)
 const paths = tree.tree.map((entry) => entry.path)
@@ -27,7 +28,8 @@ const [provinces, daNangWards] = await Promise.all([
 await mkdir(OUTPUT_DIRECTORY, { recursive: true })
 await Promise.all([
   writeGeoJson('vietnam-provinces.geojson', provinces),
-  writeGeoJson('da-nang-wards.geojson', daNangWards)
+  writeGeoJson('da-nang-wards.geojson', daNangWards),
+  writeValueCatalog(provinces, daNangWards)
 ])
 
 console.log(
@@ -69,6 +71,30 @@ async function writeGeoJson(filename, features) {
     `${JSON.stringify(output)}\n`,
     'utf8'
   )
+}
+
+async function writeValueCatalog(provinces, daNangWards) {
+  const source = `// Generated from the normalized administrative GeoJSON source.\nconst VIETNAM_PROVINCE_VALUES = ${formatValueArray(
+    provinces.map((feature) => feature.properties.code)
+  )} as const\n\nconst DANANG_WARD_VALUES = ${formatValueArray(
+    daNangWards.map((feature) => feature.properties.code)
+  )} as const\n\nexport { DANANG_WARD_VALUES, VIETNAM_PROVINCE_VALUES }\n`
+
+  await writeFile(VALUES_OUTPUT, source, 'utf8')
+}
+
+function formatValueArray(values) {
+  const rows = []
+  for (let index = 0; index < values.length; index += 12) {
+    rows.push(
+      `  ${values
+        .slice(index, index + 12)
+        .map((value) => `'${value}'`)
+        .join(', ')}`
+    )
+  }
+
+  return `[\n${rows.join(',\n')}\n]`
 }
 
 async function fetchJson(url) {

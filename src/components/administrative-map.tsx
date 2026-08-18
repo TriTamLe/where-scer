@@ -2,7 +2,13 @@ import { geoMercator, geoPath } from 'd3-geo'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
+import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
+import {
+  getInterestFill,
+  useSelectionInterest
+} from '#/hooks/use-selection-interest.ts'
+import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
 
 type AdministrativeProperties = {
   areaKm2?: number
@@ -55,17 +61,18 @@ const INSET_GAP = 14
 const INSET_X = MAP_WIDTH - INSET_WIDTH - 22
 
 function AdministrativeMap({
-  activeFill,
   activeStroke,
   activeStrokeWidth,
   activeValues,
   ariaLabel,
   dataUrl,
+  densityFills,
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
   description,
   onChange,
+  otherSelectionCounts,
   title,
   variant
 }: AdministrativeMapProps) {
@@ -75,6 +82,11 @@ function AdministrativeMap({
   const [hoveredCode, setHoveredCode] = useState<string>('')
   const [focusedCode, setFocusedCode] = useState<string>('')
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
+  const selectionInterest = useSelectionInterest({
+    activeValues,
+    optionCount: data?.features.length ?? 0,
+    otherSelectionCounts
+  })
 
   const selectedFeatures = activeValues.flatMap((code) => {
     const feature = data?.features.find(
@@ -173,9 +185,10 @@ function AdministrativeMap({
             {mainlandPaths.map(({ feature, path }) => (
               <RegionPath
                 key={`mainland-${feature.properties.code}`}
-                activeFill={activeFill}
                 activeStroke={activeStroke}
                 activeStrokeWidth={activeStrokeWidth}
+                activeValues={activeValues}
+                densityFills={densityFills}
                 defaultFill={defaultFill}
                 defaultStroke={defaultStroke}
                 defaultStrokeWidth={defaultStrokeWidth}
@@ -183,7 +196,7 @@ function AdministrativeMap({
                 focused={feature.properties.code === focusedCode}
                 hovered={feature.properties.code === hoveredCode}
                 path={path}
-                selected={activeValues.includes(feature.properties.code)}
+                getInterest={selectionInterest.getInterest}
                 onFocusChange={setFocusedCode}
                 onHoverChange={setHoveredCode}
                 onSelect={toggleActiveValue}
@@ -209,10 +222,10 @@ function AdministrativeMap({
                 inset={inset}
                 path={path}
                 total={insetPaths.length}
-                activeFill={activeFill}
                 activeStroke={activeStroke}
                 activeStrokeWidth={activeStrokeWidth}
                 activeValues={activeValues}
+                densityFills={densityFills}
                 defaultFill={defaultFill}
                 defaultStroke={defaultStroke}
                 defaultStrokeWidth={defaultStrokeWidth}
@@ -223,12 +236,24 @@ function AdministrativeMap({
                 onSelect={toggleActiveValue}
                 onTooltipHide={hideTooltip}
                 onTooltipShow={showTooltip}
+                getInterest={selectionInterest.getInterest}
               />
             ))}
           </svg>
         ) : null}
-        {tooltip ? <MapTooltip tooltip={tooltip} /> : null}
+        {tooltip ? (
+          <MapTooltip
+            activeValues={activeValues}
+            getInterest={selectionInterest.getInterest}
+            tooltip={tooltip}
+          />
+        ) : null}
       </div>
+
+      <MapDensityLegend
+        densityFills={densityFills}
+        legendItems={selectionInterest.legendItems}
+      />
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
         <div>
@@ -298,9 +323,10 @@ function AdministrativeMap({
 }
 
 type RegionPathProps = {
-  activeFill: string
   activeStroke: string
   activeStrokeWidth: number
+  activeValues: readonly string[]
+  densityFills: MapProps['densityFills']
   defaultFill: string
   defaultStroke: string
   defaultStrokeWidth: number
@@ -308,7 +334,6 @@ type RegionPathProps = {
   focused: boolean
   hovered: boolean
   path: string
-  selected: boolean
   onFocusChange: (code: string) => void
   onHoverChange: (code: string) => void
   onSelect: (code: string) => void
@@ -317,12 +342,14 @@ type RegionPathProps = {
     event: React.PointerEvent<SVGElement>,
     feature: AdministrativeFeature
   ) => void
+  getInterest: (value: string) => SelectionInterest
 }
 
 function RegionPath({
-  activeFill,
   activeStroke,
   activeStrokeWidth,
+  activeValues,
+  densityFills,
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
@@ -330,14 +357,16 @@ function RegionPath({
   focused,
   hovered,
   path,
-  selected,
   onFocusChange,
   onHoverChange,
   onSelect,
   onTooltipHide,
-  onTooltipShow
+  onTooltipShow,
+  getInterest
 }: RegionPathProps) {
   const { code, fullName } = feature.properties
+  const selected = activeValues.includes(code)
+  const interest = getInterest(code)
 
   return (
     <path
@@ -345,10 +374,18 @@ function RegionPath({
       aria-pressed={selected}
       className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
       d={path}
-      fill={selected ? activeFill : hovered ? defaultStroke : defaultFill}
+      fill={
+        interest.level === null && hovered
+          ? defaultStroke
+          : getInterestFill(interest, densityFills, defaultFill)
+      }
       role="button"
-      stroke={focused ? activeStroke : defaultStroke}
-      strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
+      stroke={selected ? activeStroke : defaultStroke}
+      strokeWidth={
+        selected || focused
+          ? Math.max(activeStrokeWidth, defaultStrokeWidth)
+          : defaultStrokeWidth
+      }
       style={{ outline: 'none' }}
       tabIndex={0}
       onBlur={() => {
@@ -380,10 +417,10 @@ function RegionPath({
 }
 
 type MapInsetProps = {
-  activeFill: string
   activeStroke: string
   activeStrokeWidth: number
   activeValues: readonly string[]
+  densityFills: MapProps['densityFills']
   defaultFill: string
   defaultStroke: string
   defaultStrokeWidth: number
@@ -396,15 +433,16 @@ type MapInsetProps = {
   onSelect: (code: string) => void
   onTooltipHide: () => void
   onTooltipShow: RegionPathProps['onTooltipShow']
+  getInterest: (value: string) => SelectionInterest
   path: string
   total: number
 }
 
 function MapInset({
-  activeFill,
   activeStroke,
   activeStrokeWidth,
   activeValues,
+  densityFills,
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
@@ -418,7 +456,8 @@ function MapInset({
   onHoverChange,
   onSelect,
   onTooltipHide,
-  onTooltipShow
+  onTooltipShow,
+  getInterest
 }: MapInsetProps) {
   const { feature, label } = inset
   const { code } = feature.properties
@@ -426,6 +465,8 @@ function MapInset({
   const selected = activeValues.includes(code)
   const hovered = code === hoveredCode
   const focused = code === focusedCode
+  const interest = getInterest(code)
+  const fill = getInterestFill(interest, densityFills, defaultFill)
 
   return (
     <g aria-label={`Ô hiển thị quần đảo ${label}`} role="group">
@@ -433,12 +474,16 @@ function MapInset({
         aria-label={`${label}, chọn ${feature.properties.fullName}, mã ${code}`}
         aria-pressed={selected}
         className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
-        fill={selected ? activeFill : hovered ? defaultStroke : defaultFill}
+        fill={interest.level === null && hovered ? defaultStroke : fill}
         height={frame.height}
         rx="12"
         role="button"
-        stroke={focused ? activeStroke : defaultStroke}
-        strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
+        stroke={selected ? activeStroke : defaultStroke}
+        strokeWidth={
+          selected || focused
+            ? Math.max(activeStrokeWidth, defaultStrokeWidth)
+            : defaultStrokeWidth
+        }
         style={{ outline: 'none' }}
         tabIndex={0}
         width={frame.width}
@@ -483,16 +528,30 @@ function MapInset({
       <path
         aria-hidden="true"
         d={path}
-        fill={selected ? activeFill : defaultFill}
+        fill={fill}
         pointerEvents="none"
-        stroke={focused ? activeStroke : defaultStroke}
-        strokeWidth={focused ? activeStrokeWidth : defaultStrokeWidth}
+        stroke={selected ? activeStroke : defaultStroke}
+        strokeWidth={
+          selected || focused
+            ? Math.max(activeStrokeWidth, defaultStrokeWidth)
+            : defaultStrokeWidth
+        }
       />
     </g>
   )
 }
 
-function MapTooltip({ tooltip }: { tooltip: TooltipState }) {
+function MapTooltip({
+  activeValues,
+  getInterest,
+  tooltip
+}: Pick<MapProps, 'activeValues'> & {
+  getInterest: (value: string) => SelectionInterest
+  tooltip: TooltipState
+}) {
+  const { code } = tooltip.feature.properties
+  const interest = getInterest(code)
+  const selected = activeValues.includes(code)
   return (
     <div
       className="pointer-events-none absolute z-10 max-w-52 rounded-md border bg-popover px-3 py-2 text-sm shadow-md"
@@ -500,11 +559,20 @@ function MapTooltip({ tooltip }: { tooltip: TooltipState }) {
       style={{ left: tooltip.x, top: tooltip.y }}
     >
       <p className="font-semibold">{tooltip.feature.properties.fullName}</p>
+      <p className="mt-0.5 text-muted-foreground">Mã: {code}</p>
       <p className="mt-0.5 text-muted-foreground">
-        Mã: {tooltip.feature.properties.code}
+        {interest.count > 0
+          ? `${interest.count} thành viên đã chọn${selected ? ' (bao gồm bạn)' : ''} · Mức ${interest.level} (${formatLift(interest.lift)}× trung bình)`
+          : 'Chưa có thành viên chọn'}
       </p>
     </div>
   )
+}
+
+function formatLift(lift: number) {
+  return new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: 2
+  }).format(lift)
 }
 
 function useDeferredGeoData(
