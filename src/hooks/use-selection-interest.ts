@@ -6,43 +6,15 @@ type InterestLevel = 1 | 2 | 3 | 4
 type SelectionInterest = {
   count: number
   level: InterestLevel | null
-  lift: number
-}
-type InterestLegendItem = {
-  label: string
-  level: InterestLevel
 }
 type UseSelectionInterestOptions = {
-  optionCount: number
   selectionCounts: Readonly<Record<string, number>>
 }
 
-function createLegendItems(averageSelectionsPerOption: number) {
-  if (averageSelectionsPerOption === 0) {
-    return [
-      { level: 1, label: 'Mức 1 · Chưa có check-in' },
-      { level: 2, label: 'Mức 2 · Chưa có check-in' },
-      { level: 3, label: 'Mức 3 · Chưa có check-in' },
-      { level: 4, label: 'Mức 4 · Chưa có check-in' }
-    ] as const satisfies readonly InterestLegendItem[]
-  }
-
-  const low = formatCheckinCount(averageSelectionsPerOption * 0.75)
-  const medium = formatCheckinCount(averageSelectionsPerOption * 1.25)
-  const high = formatCheckinCount(averageSelectionsPerOption * 1.75)
-
-  return [
-    { level: 1, label: `Mức 1 · Dưới ${low} check-in` },
-    { level: 2, label: `Mức 2 · ${low}–<${medium} check-in` },
-    { level: 3, label: `Mức 3 · ${medium}–<${high} check-in` },
-    { level: 4, label: `Mức 4 · Từ ${high} check-in` }
-  ] as const satisfies readonly InterestLegendItem[]
-}
-
-function formatCheckinCount(value: number) {
-  return new Intl.NumberFormat('vi-VN', {
-    maximumFractionDigits: 1
-  }).format(value)
+type DensityThresholds = {
+  high: number
+  low: number
+  medium: number
 }
 
 function getSelectionCount(
@@ -61,20 +33,28 @@ function calculateTotalSelections(
   )
 }
 
-function calculateRelativeInterest(
-  selectionCount: number,
-  optionCount: number,
-  totalSelections: number
-) {
-  if (selectionCount <= 0 || optionCount <= 0 || totalSelections <= 0) return 0
+function createDensityThresholds(
+  positiveSelectionCounts: readonly number[]
+): DensityThresholds | null {
+  if (positiveSelectionCounts.length === 0) return null
 
-  return (optionCount * selectionCount) / totalSelections
+  const sortedCounts = [...positiveSelectionCounts].sort((a, b) => a - b)
+  const atPercentile = (percentile: number) =>
+    sortedCounts[Math.ceil(sortedCounts.length * percentile) - 1] ?? 1
+  const low = atPercentile(0.25)
+  const medium = Math.max(low + 1, atPercentile(0.5))
+  const high = Math.max(medium + 1, atPercentile(0.75))
+
+  return { high, low, medium }
 }
 
-function classifyRelativeInterest(lift: number): InterestLevel {
-  if (lift < 0.75) return 1
-  if (lift < 1.25) return 2
-  if (lift < 1.75) return 3
+function classifySelectionCount(
+  selectionCount: number,
+  thresholds: DensityThresholds
+): InterestLevel {
+  if (selectionCount <= thresholds.low) return 1
+  if (selectionCount <= thresholds.medium) return 2
+  if (selectionCount <= thresholds.high) return 3
   return 4
 }
 
@@ -89,44 +69,38 @@ function getInterestFill(
 }
 
 function useSelectionInterest({
-  optionCount,
   selectionCounts
 }: UseSelectionInterestOptions) {
   return useMemo(() => {
-    const totalSelections = calculateTotalSelections(selectionCounts)
-    const averageSelectionsPerOption =
-      optionCount > 0 ? totalSelections / optionCount : 0
+    const positiveSelectionCounts = Object.values(selectionCounts).filter(
+      (count) => count > 0
+    )
+    const thresholds = createDensityThresholds(positiveSelectionCounts)
 
     function getInterest(value: string): SelectionInterest {
       const count = getSelectionCount(value, selectionCounts)
-      const lift = calculateRelativeInterest(
-        count,
-        optionCount,
-        totalSelections
-      )
-
       return {
         count,
-        level: count === 0 ? null : classifyRelativeInterest(lift),
-        lift
+        level:
+          count === 0 || !thresholds
+            ? null
+            : classifySelectionCount(count, thresholds)
       }
     }
 
     return {
-      averageSelectionsPerOption,
       getInterest,
-      legendItems: createLegendItems(averageSelectionsPerOption),
-      totalSelections
+      totalSelections: calculateTotalSelections(selectionCounts)
     }
-  }, [optionCount, selectionCounts])
+  }, [selectionCounts])
 }
 
 export {
-  calculateRelativeInterest,
   calculateTotalSelections,
-  classifyRelativeInterest,
+  classifySelectionCount,
+  createDensityThresholds,
   getInterestFill,
   getSelectionCount,
   useSelectionInterest
 }
-export type { InterestLegendItem, InterestLevel, SelectionInterest }
+export type { InterestLevel, SelectionInterest }

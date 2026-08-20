@@ -14,7 +14,6 @@ import type {
 } from 'topojson-specification'
 import worldAtlas from 'world-atlas/countries-110m.json'
 
-import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
 import { MapZoomControls, useMapViewport } from '#/components/map-viewport.tsx'
 import {
@@ -102,7 +101,6 @@ function WorldMap({
   const isDragging = useRef(false)
   const didDrag = useRef(false)
   const selectionInterest = useSelectionInterest({
-    optionCount: WORLD_MAP_VALUES.length,
     selectionCounts
   })
   const activeCountries = useMemo(
@@ -113,7 +111,6 @@ function WorldMap({
       ),
     [activeValues]
   )
-
   const toggleActiveValue = useCallback(
     (value: string) => {
       onChange(
@@ -238,7 +235,7 @@ function WorldMap({
               tooltip: {
                 use: tooltip,
                 className:
-                  'rounded-md border border-border bg-popover px-3 py-2 text-sm font-semibold text-popover-foreground shadow-md',
+                  'rounded-md border border-border bg-popover px-3 py-2 text-sm font-semibold text-popover-foreground',
                 format: (point) =>
                   formatCountryMessage(
                     point.datum,
@@ -393,7 +390,7 @@ function WorldMap({
             Bản đồ Thế giới
           </h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
-            Chọn một hoặc nhiều quốc gia để xem số SC-ers đã check-in.
+            Chọn một hoặc nhiều quốc gia để đánh dấu các nơi bạn đã check-in.
           </p>
         </div>
         <p className="shrink-0 text-sm text-muted-foreground">
@@ -441,13 +438,6 @@ function WorldMap({
           </>
         ) : null}
       </div>
-      <MapDensityLegend
-        averageSelectionsPerOption={
-          selectionInterest.averageSelectionsPerOption
-        }
-        densityFills={densityFills}
-        legendItems={selectionInterest.legendItems}
-      />
     </section>
   )
 }
@@ -484,7 +474,9 @@ function formatCountryMessage(
   const count =
     interest.count > 0
       ? activeValues.includes(code)
-        ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+        ? interest.count === 1
+          ? 'Bạn đã đến đây'
+          : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
         : `${interest.count} SC-ers đã đến đây`
       : 'Chưa có SC-er nào check-in ở đây'
 
@@ -519,7 +511,7 @@ function CountryAimPanel({
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs shadow-sm"
+      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs"
     >
       {country ? (
         <>
@@ -530,7 +522,9 @@ function CountryAimPanel({
           <p className="mt-0.5 text-muted-foreground">
             {interest.count > 0
               ? selected
-                ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+                ? interest.count === 1
+                  ? 'Bạn đã đến đây'
+                  : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
                 : `${interest.count} SC-ers đã đến đây`
               : 'Chưa có SC-er nào check-in ở đây'}
           </p>

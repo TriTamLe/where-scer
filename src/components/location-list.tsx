@@ -1,42 +1,16 @@
 import { Search } from 'lucide-react'
-import { numericToAlpha2 } from 'i18n-iso-countries'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Input } from '#/components/ui/input.tsx'
 import { WORLD_LOCATIONS } from '#/components/world-map.tsx'
 
 type LocationType = 'country' | 'province' | 'ward'
-type CheckinGroup = { code: string; count: number; nicknames: string[] }
 type LocationOption = { code: string; name: string }
 
 const GEOJSON_URLS: Record<Exclude<LocationType, 'country'>, string> = {
   province: '/data/administrative-maps/vietnam-provinces.geojson',
   ward: '/data/administrative-maps/da-nang-wards.geojson'
 }
-const PLAYER_NAME_COLORS = [
-  'var(--secondary-strong)',
-  'var(--accent-strong)',
-  'var(--success)',
-  'var(--primary-strong)'
-] as const
-
-function countryFlag(code: string) {
-  const alpha2 = numericToAlpha2(code.padStart(3, '0'))
-  return alpha2
-    ? [...alpha2]
-        .map((letter) => String.fromCodePoint(127397 + letter.charCodeAt(0)))
-        .join('')
-    : null
-}
-
-function nicknameColor(nickname: string) {
-  const hash = [...nickname].reduce(
-    (total, character) => (total * 31 + character.codePointAt(0)!) >>> 0,
-    0
-  )
-  return PLAYER_NAME_COLORS[hash % PLAYER_NAME_COLORS.length]
-}
-
 function useLocationOptions(type: LocationType) {
   const [options, setOptions] = useState<LocationOption[]>(
     type === 'country' ? WORLD_LOCATIONS : []
@@ -101,20 +75,16 @@ function isAdministrativeFeatureCollection(value: unknown): value is {
 }
 
 function LocationList({
-  groups,
+  onToggle,
   selected,
   type
 }: {
-  groups: CheckinGroup[]
+  onToggle: (code: string, selected: boolean) => void
   selected: readonly string[]
   type: LocationType
 }) {
   const [search, setSearch] = useState('')
   const options = useLocationOptions(type)
-  const groupByCode = useMemo(
-    () => new Map(groups.map((group) => [group.code, group])),
-    [groups]
-  )
   const normalizedSearch = search.trim().toLocaleLowerCase('vi')
   const rows = useMemo(
     () =>
@@ -133,17 +103,11 @@ function LocationList({
           }
 
           if (!leftIsSelected) {
-            const countDifference =
-              (groupByCode.get(right.code)?.count ?? 0) -
-              (groupByCode.get(left.code)?.count ?? 0)
-            if (countDifference !== 0) {
-              return countDifference
-            }
           }
 
           return left.name.localeCompare(right.name, 'vi')
         }),
-    [groupByCode, normalizedSearch, options, selected]
+    [normalizedSearch, options, selected]
   )
 
   return (
@@ -167,9 +131,7 @@ function LocationList({
       </label>
       <ul className="mt-4 max-h-136 overflow-y-auto pr-1 xl:min-h-0 xl:max-h-none xl:flex-1">
         {rows.map((option) => {
-          const group = groupByCode.get(option.code)
           const isSelected = selected.includes(option.code)
-          const flag = type === 'country' ? countryFlag(option.code) : null
           return (
             <li
               key={option.code}
@@ -180,36 +142,19 @@ function LocationList({
               }
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="font-medium">
-                  {flag ? (
-                    <span aria-hidden="true" className="mr-2">
-                      {flag}
-                    </span>
-                  ) : null}
-                  {option.name}
-                </p>
-                {isSelected ? (
-                  <span className="shrink-0 text-xs font-semibold text-primary-strong">
-                    Bạn đã chọn
-                  </span>
-                ) : null}
+                <p className="font-medium">{option.name}</p>
+                <button
+                  aria-pressed={isSelected}
+                  className="shrink-0 text-xs font-semibold text-primary-strong underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  type="button"
+                  onClick={() => onToggle(option.code, !isSelected)}
+                >
+                  {isSelected ? 'Bỏ chọn' : 'Thêm'}
+                </button>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
-                {option.code} · {group?.count ?? 0} SC-er
-                {(group?.count ?? 0) === 1 ? '' : 's'}
+                Mã: {option.code}
               </p>
-              {group?.nicknames.length ? (
-                <div className="mt-2 flex flex-wrap gap-x-2 gap-y-1 text-sm">
-                  {group.nicknames.map((nickname) => (
-                    <span
-                      key={nickname}
-                      style={{ color: nicknameColor(nickname) }}
-                    >
-                      {nickname}
-                    </span>
-                  ))}
-                </div>
-              ) : null}
             </li>
           )
         })}

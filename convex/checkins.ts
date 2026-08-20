@@ -1,3 +1,4 @@
+import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 
 import { SPECIAL_ACCOUNT_CODE } from './accounts'
@@ -9,10 +10,7 @@ const locationType = v.union(
   v.literal('ward')
 )
 
-async function accountForCode(
-  ctx: Parameters<typeof query>[0] extends never ? never : any,
-  code: string
-) {
+async function accountForCode(ctx: any, code: string) {
   return ctx.db
     .query('accounts')
     .withIndex('by_code', (index: any) =>
@@ -20,6 +18,64 @@ async function accountForCode(
     )
     .unique()
 }
+
+async function updateLocationStat(
+  ctx: any,
+  type: 'country' | 'province' | 'ward',
+  locationCode: string,
+  change: 1 | -1
+) {
+  const stat = await ctx.db
+    .query('locationStats')
+    .withIndex('by_type_location', (index: any) =>
+      index.eq('type', type).eq('locationCode', locationCode)
+    )
+    .unique()
+
+  if (!stat) {
+    if (change < 0) return
+    await ctx.db.insert('locationStats', {
+      count: 1,
+      locationCode,
+      type,
+      updatedAt: Date.now()
+    })
+    return
+  }
+
+  await ctx.db.patch(stat._id, {
+    count: Math.max(0, stat.count + change),
+    updatedAt: Date.now()
+  })
+}
+
+export const mine = query({
+  args: { code: v.string() },
+  handler: async (ctx, { code }) => {
+    const account = await accountForCode(ctx, code)
+    if (!account) return null
+
+    const checkins = await ctx.db
+      .query('checkins')
+      .withIndex('by_account_type', (index) =>
+        index.eq('accountId', account._id)
+      )
+      .collect()
+
+    return {
+      account: {
+        code: account.code,
+        nickname: account.nickname,
+        publicId: account.publicId ?? ''
+      },
+      canExport: account.code === SPECIAL_ACCOUNT_CODE,
+      selected: checkins.map((checkin) => ({
+        code: checkin.locationCode,
+        type: checkin.type
+      }))
+    }
+  }
+})
 
 export const toggle = mutation({
   args: {
@@ -36,16 +92,15 @@ export const toggle = mutation({
       nextType: 'country' | 'province' | 'ward',
       nextCode: string
     ) => {
-      const accountCheckins = await ctx.db
+      const existing = await ctx.db
         .query('checkins')
-        .withIndex('by_account_type')
-        .collect()
-      const existing = accountCheckins.find(
-        (checkin) =>
-          checkin.accountId === account._id &&
-          checkin.type === nextType &&
-          checkin.locationCode === nextCode
-      )
+        .withIndex('by_account_type_code', (index) =>
+          index
+            .eq('accountId', account._id)
+            .eq('type', nextType)
+            .eq('locationCode', nextCode)
+        )
+        .unique()
       if (selected && !existing) {
         await ctx.db.insert('checkins', {
           accountId: account._id,
@@ -53,8 +108,12 @@ export const toggle = mutation({
           locationCode: nextCode,
           type: nextType
         })
+        await updateLocationStat(ctx, nextType, nextCode, 1)
       }
-      if (!selected && existing) await ctx.db.delete(existing._id)
+      if (!selected && existing) {
+        await ctx.db.delete(existing._id)
+        await updateLocationStat(ctx, nextType, nextCode, -1)
+      }
     }
 
     await apply(type, locationCode)
@@ -64,66 +123,14 @@ export const toggle = mutation({
   }
 })
 
-export const dashboard = query({
-  args: { code: v.string() },
-  handler: async (ctx, { code }) => {
-    const account = await accountForCode(ctx, code)
-    if (!account) return null
-
-    const checkins = await ctx.db.query('checkins').collect()
-    const accounts = new Map<string, string>()
-    for (const checkin of checkins) {
-      if (!accounts.has(String(checkin.accountId))) {
-        const member = await ctx.db.get(checkin.accountId)
-        if (member) accounts.set(String(member._id), member.nickname)
-      }
-    }
-
-    const groups = {
-      country: [] as Array<{
-        code: string
-        count: number
-        nicknames: string[]
-      }>,
-      province: [] as Array<{
-        code: string
-        count: number
-        nicknames: string[]
-      }>,
-      ward: [] as Array<{ code: string; count: number; nicknames: string[] }>
-    }
-    for (const type of ['country', 'province', 'ward'] as const) {
-      const grouped = new Map<string, string[]>()
-      for (const checkin of checkins) {
-        if (checkin.type !== type) continue
-        const nickname = accounts.get(String(checkin.accountId))
-        if (!nickname) continue
-        grouped.set(checkin.locationCode, [
-          ...(grouped.get(checkin.locationCode) ?? []),
-          nickname
-        ])
-      }
-      groups[type] = [...grouped.entries()].map(
-        ([locationCode, nicknames]) => ({
-          code: locationCode,
-          count: nicknames.length,
-          nicknames: nicknames.sort((left, right) =>
-            left.localeCompare(right, 'vi')
-          )
-        })
-      )
-    }
-
-    return {
-      account: { code: account.code, nickname: account.nickname },
-      groups,
-      memberCount: accounts.size,
-      selected: checkins
-        .filter((checkin) => checkin.accountId === account._id)
-        .map((checkin) => ({ code: checkin.locationCode, type: checkin.type })),
-      checkedInCountryCount: groups.country.length,
-      canExport: account.code === SPECIAL_ACCOUNT_CODE
-    }
+export const mapStats = query({
+  args: { type: locationType },
+  handler: async (ctx, { type }) => {
+    const stats = await ctx.db
+      .query('locationStats')
+      .withIndex('by_type', (index) => index.eq('type', type))
+      .collect()
+    return stats.map((stat) => ({ code: stat.locationCode, count: stat.count }))
   }
 })
 
@@ -134,31 +141,90 @@ export const exportCounts = query({
     if (account?.code !== SPECIAL_ACCOUNT_CODE) {
       throw new Error('Account này không có quyền xuất dữ liệu.')
     }
-    const checkins = await ctx.db.query('checkins').collect()
-    const result = {
-      country: new Map<string, number>(),
-      province: new Map<string, number>(),
-      ward: new Map<string, number>()
-    }
-    for (const checkin of checkins) {
-      const type = checkin.type
-      result[type].set(
-        checkin.locationCode,
-        (result[type].get(checkin.locationCode) ?? 0) + 1
-      )
-    }
+    const stats = await ctx.db.query('locationStats').collect()
     return {
-      country: [...result.country.entries()].map(([locationCode, count]) => ({
-        code: locationCode,
-        count
-      })),
-      province: [...result.province.entries()].map(([locationCode, count]) => ({
-        code: locationCode,
-        count
-      })),
-      ward: [...result.ward.entries()].map(([locationCode, count]) => ({
-        code: locationCode,
-        count
+      country: stats
+        .filter((stat) => stat.type === 'country')
+        .map((stat) => ({ code: stat.locationCode, count: stat.count })),
+      province: stats
+        .filter((stat) => stat.type === 'province')
+        .map((stat) => ({ code: stat.locationCode, count: stat.count })),
+      ward: stats
+        .filter((stat) => stat.type === 'ward')
+        .map((stat) => ({ code: stat.locationCode, count: stat.count }))
+    }
+  }
+})
+
+export const rebuildLocationStats = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const checkins = await ctx.db.query('checkins').collect()
+    const existingStats = await ctx.db.query('locationStats').collect()
+    const counts = new Map<string, number>()
+
+    for (const checkin of checkins) {
+      const key = `${checkin.type}:${checkin.locationCode}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    for (const stat of existingStats) await ctx.db.delete(stat._id)
+    for (const [key, count] of counts) {
+      const [type, locationCode] = key.split(':') as [
+        'country' | 'province' | 'ward',
+        string
+      ]
+      await ctx.db.insert('locationStats', {
+        count,
+        locationCode,
+        type,
+        updatedAt: Date.now()
+      })
+    }
+    return { locations: counts.size }
+  }
+})
+
+export const peopleByCountry = query({
+  args: { countryCode: v.string(), paginationOpts: paginationOptsValidator },
+  handler: async (ctx, { countryCode, paginationOpts }) => {
+    const page = await ctx.db
+      .query('checkins')
+      .withIndex('by_type_location_account', (index) =>
+        index.eq('type', 'country').eq('locationCode', countryCode)
+      )
+      .paginate(paginationOpts)
+    const people = await Promise.all(
+      page.page.map(async (checkin) => {
+        const account = await ctx.db.get(checkin.accountId)
+        return account?.publicId
+          ? { nickname: account.nickname, publicId: account.publicId }
+          : null
+      })
+    )
+    return { ...page, page: people.filter((person) => person !== null) }
+  }
+})
+
+export const profileCheckins = query({
+  args: { publicId: v.string() },
+  handler: async (ctx, { publicId }) => {
+    const account = await ctx.db
+      .query('accounts')
+      .withIndex('by_public_id', (index) => index.eq('publicId', publicId))
+      .unique()
+    if (!account || !account.publicId) return null
+    const checkins = await ctx.db
+      .query('checkins')
+      .withIndex('by_account_type', (index) =>
+        index.eq('accountId', account._id)
+      )
+      .collect()
+    return {
+      nickname: account.nickname,
+      publicId: account.publicId,
+      checkins: checkins.map((checkin) => ({
+        code: checkin.locationCode,
+        type: checkin.type
       }))
     }
   }

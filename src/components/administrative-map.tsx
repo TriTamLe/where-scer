@@ -2,7 +2,6 @@ import { geoMercator, geoPath } from 'd3-geo'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
-import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
 import { MapZoomControls, useMapViewport } from '#/components/map-viewport.tsx'
 import {
@@ -88,7 +87,6 @@ function AdministrativeMap({
   const [aimedCode, setAimedCode] = useState<string>('')
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const selectionInterest = useSelectionInterest({
-    optionCount: data?.features.length ?? 0,
     selectionCounts
   })
 
@@ -312,14 +310,6 @@ function AdministrativeMap({
           />
         ) : null}
       </div>
-
-      <MapDensityLegend
-        averageSelectionsPerOption={
-          selectionInterest.averageSelectionsPerOption
-        }
-        densityFills={densityFills}
-        legendItems={selectionInterest.legendItems}
-      />
     </section>
   )
 }
@@ -552,7 +542,7 @@ function MapTooltip({
   const selected = activeValues.includes(code)
   return (
     <div
-      className="pointer-events-none absolute z-10 max-w-52 rounded-md border bg-popover px-3 py-2 text-sm shadow-md"
+      className="pointer-events-none absolute z-10 max-w-52 rounded-md border bg-popover px-3 py-2 text-sm"
       role="tooltip"
       style={{ left: tooltip.x, top: tooltip.y }}
     >
@@ -561,7 +551,9 @@ function MapTooltip({
       <p className="mt-0.5 text-muted-foreground">
         {interest.count > 0
           ? selected
-            ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+            ? interest.count === 1
+              ? 'Bạn đã đến đây'
+              : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
             : `${interest.count} SC-ers đã đến đây`
           : 'Chưa có SC-er nào check-in ở đây'}
       </p>
@@ -597,7 +589,7 @@ function AdministrativeAimPanel({
   return (
     <div
       aria-live="polite"
-      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs shadow-sm"
+      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs"
     >
       {feature ? (
         <>
@@ -606,7 +598,9 @@ function AdministrativeAimPanel({
           <p className="mt-0.5 text-muted-foreground">
             {interest.count > 0
               ? selected
-                ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+                ? interest.count === 1
+                  ? 'Bạn đã đến đây'
+                  : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
                 : `${interest.count} SC-ers đã đến đây`
               : 'Chưa có SC-er nào check-in ở đây'}
           </p>

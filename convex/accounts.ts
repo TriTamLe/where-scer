@@ -63,6 +63,16 @@ function normalizeNickname(nickname: string) {
     .join(' ')
 }
 
+function normalizeNicknameSearch(nickname: string) {
+  return nickname
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .toLocaleLowerCase('vi-VN')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
 function createCode() {
   const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
   let suffix = ''
@@ -74,6 +84,30 @@ function createCode() {
   return `SC-${suffix}`
 }
 
+function createPublicId() {
+  const characters = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  let suffix = ''
+
+  for (let index = 0; index < 8; index += 1) {
+    suffix += characters[Math.floor(Math.random() * characters.length)]
+  }
+
+  return `P-${suffix}`
+}
+
+async function uniquePublicId(ctx: any) {
+  let publicId = createPublicId()
+  while (
+    await ctx.db
+      .query('accounts')
+      .withIndex('by_public_id', (index: any) => index.eq('publicId', publicId))
+      .unique()
+  ) {
+    publicId = createPublicId()
+  }
+  return publicId
+}
+
 export const getByCode = query({
   args: { code: codeValidator },
   handler: async (ctx, { code }) => {
@@ -83,6 +117,30 @@ export const getByCode = query({
       .unique()
 
     return account ? { code: account.code, nickname: account.nickname } : null
+  }
+})
+
+export const searchPeople = query({
+  args: { query: v.string() },
+  handler: async (ctx, { query: searchTerm }) => {
+    const normalizedQuery = normalizeNicknameSearch(searchTerm)
+    if (normalizedQuery.length < 2) return []
+
+    const accounts = await ctx.db
+      .query('accounts')
+      .withSearchIndex('search_nickname', (index) =>
+        index.search('nicknameSearch', normalizedQuery)
+      )
+      .take(10)
+
+    return accounts
+      .map((account) => ({
+        nickname: account.nickname,
+        publicId: account.publicId
+      }))
+      .filter((account): account is { nickname: string; publicId: string } =>
+        Boolean(account.publicId)
+      )
   }
 })
 
@@ -110,6 +168,8 @@ export const create = mutation({
       code,
       createdAt: now,
       nickname: normalizedNickname,
+      nicknameSearch: normalizeNicknameSearch(normalizedNickname),
+      publicId: await uniquePublicId(ctx),
       updatedAt: now
     })
 
@@ -133,6 +193,7 @@ export const updateNickname = mutation({
 
     await ctx.db.patch(account._id, {
       nickname: normalizedNickname,
+      nicknameSearch: normalizeNicknameSearch(normalizedNickname),
       updatedAt: Date.now()
     })
 
@@ -148,12 +209,53 @@ export const normalizeAllNicknames = mutation({
 
     for (const account of accounts) {
       const nickname = normalizeNickname(account.nickname)
-      if (nickname === account.nickname) continue
-      await ctx.db.patch(account._id, { nickname, updatedAt: Date.now() })
+      if (
+        nickname === account.nickname &&
+        account.nicknameSearch === normalizeNicknameSearch(nickname)
+      )
+        continue
+      await ctx.db.patch(account._id, {
+        nickname,
+        nicknameSearch: normalizeNicknameSearch(nickname),
+        updatedAt: Date.now()
+      })
       updated += 1
     }
 
     return { updated }
+  }
+})
+
+export const backfillPublicProfiles = mutation({
+  args: { cursor: v.optional(v.string()), limit: v.optional(v.number()) },
+  handler: async (ctx, { cursor, limit = 100 }) => {
+    const accounts = await ctx.db
+      .query('accounts')
+      .withIndex('by_code', (index) =>
+        cursor ? index.gt('code', cursor) : index
+      )
+      .take(Math.min(limit, 250))
+    let updated = 0
+
+    for (const account of accounts) {
+      const updates: Record<string, string | number> = {}
+      if (!account.publicId) updates.publicId = await uniquePublicId(ctx)
+      const nicknameSearch = normalizeNicknameSearch(account.nickname)
+      if (account.nicknameSearch !== nicknameSearch) {
+        updates.nicknameSearch = nicknameSearch
+      }
+      if (Object.keys(updates).length > 0) {
+        updates.updatedAt = Date.now()
+        await ctx.db.patch(account._id, updates)
+        updated += 1
+      }
+    }
+
+    return {
+      nextCursor: accounts.at(-1)?.code ?? null,
+      scanned: accounts.length,
+      updated
+    }
   }
 })
 
@@ -171,6 +273,8 @@ export const seedSpecial = mutation({
       code: SPECIAL_ACCOUNT_CODE,
       createdAt: now,
       nickname: SPECIAL_ACCOUNT_NICKNAME,
+      nicknameSearch: normalizeNicknameSearch(SPECIAL_ACCOUNT_NICKNAME),
+      publicId: await uniquePublicId(ctx),
       updatedAt: now
     })
     return { created: true, code: SPECIAL_ACCOUNT_CODE }
@@ -195,6 +299,8 @@ export const seedDemoAccounts = mutation({
           code: demoAccount.code,
           createdAt: now,
           nickname: demoAccount.nickname,
+          nicknameSearch: normalizeNicknameSearch(demoAccount.nickname),
+          publicId: await uniquePublicId(ctx),
           updatedAt: now
         })
         account = await ctx.db.get(accountId)
@@ -202,6 +308,7 @@ export const seedDemoAccounts = mutation({
       } else if (account.nickname !== demoAccount.nickname) {
         await ctx.db.patch(account._id, {
           nickname: demoAccount.nickname,
+          nicknameSearch: normalizeNicknameSearch(demoAccount.nickname),
           updatedAt: Date.now()
         })
       }
