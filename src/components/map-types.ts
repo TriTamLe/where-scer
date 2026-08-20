@@ -8,8 +8,9 @@ type MapProps = {
   defaultFill: string
   defaultStroke: string
   defaultStrokeWidth: number
+  hoverFill: string
   onChange: (nextActiveValues: string[]) => void
-  otherSelectionCounts: Readonly<Record<string, number>>
+  selectionCounts: Readonly<Record<string, number>>
 }
 
 export type { DensityFills, MapProps }

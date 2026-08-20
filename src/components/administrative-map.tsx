@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
 import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
+import { MapZoomControls, useMapViewport } from '#/components/map-viewport.tsx'
 import {
   getInterestFill,
   useSelectionInterest
@@ -59,6 +60,7 @@ const INSET_WIDTH = 208
 const INSET_HEIGHT = 132
 const INSET_GAP = 14
 const INSET_X = MAP_WIDTH - INSET_WIDTH - 22
+const DESKTOP_BREAKPOINT = '(min-width: 768px)'
 
 function AdministrativeMap({
   activeStroke,
@@ -70,30 +72,26 @@ function AdministrativeMap({
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
+  hoverFill,
   description,
   onChange,
-  otherSelectionCounts,
+  selectionCounts,
   title,
   variant
 }: AdministrativeMapProps) {
   const id = useId()
+  const isDesktop = useDesktopViewport()
+  const viewport = useMapViewport({ maxZoom: variant === 'province' ? 8 : 4 })
   const [containerRef, width] = useElementWidth<HTMLDivElement>()
   const [data, status, error] = useDeferredGeoData(dataUrl, containerRef)
   const [hoveredCode, setHoveredCode] = useState<string>('')
-  const [focusedCode, setFocusedCode] = useState<string>('')
+  const [aimedCode, setAimedCode] = useState<string>('')
   const [tooltip, setTooltip] = useState<TooltipState | null>(null)
   const selectionInterest = useSelectionInterest({
-    activeValues,
     optionCount: data?.features.length ?? 0,
-    otherSelectionCounts
+    selectionCounts
   })
 
-  const selectedFeatures = activeValues.flatMap((code) => {
-    const feature = data?.features.find(
-      (candidate) => candidate.properties.code === code
-    )
-    return feature ? [feature] : []
-  })
   const presentation = useMemo(
     () => createMapPresentation(data, variant),
     [data, variant]
@@ -106,10 +104,19 @@ function AdministrativeMap({
     () => projectInsetPaths(presentation?.insets ?? []),
     [presentation]
   )
+  const featuresByCode = useMemo(
+    () =>
+      new Map(
+        data?.features.map((feature) => [feature.properties.code, feature])
+      ),
+    [data]
+  )
   const outlinedMainlandPaths = mainlandPaths.filter(({ feature }) =>
     activeValues.includes(feature.properties.code)
   )
-  const isWardMap = variant === 'ward'
+  const mapTransform = `translate(${viewport.panX * MAP_WIDTH} ${
+    viewport.panY * MAP_HEIGHT
+  }) translate(${MAP_WIDTH / 2} ${MAP_HEIGHT / 2}) scale(${viewport.zoom}) translate(${-MAP_WIDTH / 2} ${-MAP_HEIGHT / 2})`
 
   function toggleActiveValue(value: string) {
     onChange(
@@ -143,10 +150,40 @@ function AdministrativeMap({
     setTooltip(null)
   }
 
+  useEffect(() => {
+    if (isDesktop) return
+    const container = containerRef.current
+    if (!container) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const bounds = container.getBoundingClientRect()
+      const target = document.elementFromPoint(
+        bounds.left + bounds.width / 2,
+        bounds.top + bounds.height / 2
+      )
+      const code =
+        target instanceof Element
+          ? target
+              .closest('[data-map-location]')
+              ?.getAttribute('data-map-location')
+          : null
+      setAimedCode(code ?? '')
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [
+    containerRef,
+    isDesktop,
+    viewport.panX,
+    viewport.panY,
+    viewport.zoom,
+    width
+  ])
+
   return (
     <section
       aria-labelledby={`${id}-title`}
-      className="rounded-xl border bg-card p-4 shadow-sm sm:p-6"
+      className="flex h-[42rem] w-full flex-col border-b border-divider pb-8"
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-2xl">
@@ -163,58 +200,75 @@ function AdministrativeMap({
           </p>
         ) : null}
       </div>
-
       <div
         ref={containerRef}
         className={
-          isWardMap
-            ? 'relative mt-5 min-h-80 w-full overflow-hidden rounded-lg border bg-background sm:min-h-105'
-            : 'relative mt-5 min-h-72 w-full overflow-hidden rounded-lg border bg-background sm:min-h-96'
+          'relative mt-5 min-h-0 w-full flex-1 touch-none overflow-hidden rounded-lg border bg-[var(--map-background)]'
         }
+        onClickCapture={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest('[data-map-controls]')
+          ) {
+            return
+          }
+          viewport.onClickCapture(event)
+        }}
+        onPointerCancel={viewport.onPointerEnd}
+        onPointerDown={viewport.onPointerDown}
+        onPointerMove={viewport.onPointerMove}
+        onPointerUp={viewport.onPointerEnd}
       >
         {status === 'loading' ? <MapSkeleton /> : null}
         {status === 'error' ? <MapError error={error} /> : null}
         {data && width > 0 ? (
           <svg
             aria-label={ariaLabel}
-            className="block h-auto w-full"
+            className="block h-full w-full"
+            ref={viewport.wheelRef}
             role="group"
             viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
           >
             <desc>{description}</desc>
-            {mainlandPaths.map(({ feature, path }) => (
-              <RegionPath
-                key={`mainland-${feature.properties.code}`}
-                activeStroke={activeStroke}
-                activeStrokeWidth={activeStrokeWidth}
-                activeValues={activeValues}
-                densityFills={densityFills}
-                defaultFill={defaultFill}
-                defaultStroke={defaultStroke}
-                defaultStrokeWidth={defaultStrokeWidth}
-                feature={feature}
-                focused={feature.properties.code === focusedCode}
-                hovered={feature.properties.code === hoveredCode}
-                path={path}
-                getInterest={selectionInterest.getInterest}
-                onFocusChange={setFocusedCode}
-                onHoverChange={setHoveredCode}
-                onSelect={toggleActiveValue}
-                onTooltipHide={hideTooltip}
-                onTooltipShow={showTooltip}
-              />
-            ))}
-            {outlinedMainlandPaths.map(({ feature, path }) => (
-              <path
-                aria-hidden="true"
-                d={path}
-                fill="none"
-                key={`active-${feature.properties.code}`}
-                pointerEvents="none"
-                stroke={activeStroke}
-                strokeWidth={activeStrokeWidth}
-              />
-            ))}
+            <g transform={mapTransform}>
+              {mainlandPaths.map(({ feature, path }) => (
+                <RegionPath
+                  key={`mainland-${feature.properties.code}`}
+                  activeStroke={activeStroke}
+                  activeStrokeWidth={activeStrokeWidth}
+                  activeValues={activeValues}
+                  densityFills={densityFills}
+                  defaultFill={defaultFill}
+                  defaultStroke={defaultStroke}
+                  defaultStrokeWidth={defaultStrokeWidth}
+                  hoverFill={hoverFill}
+                  isDesktop={isDesktop}
+                  feature={feature}
+                  hovered={
+                    feature.properties.code ===
+                    (isDesktop ? hoveredCode : aimedCode)
+                  }
+                  path={path}
+                  getInterest={selectionInterest.getInterest}
+                  onHoverChange={setHoveredCode}
+                  onSelect={toggleActiveValue}
+                  onTooltipHide={hideTooltip}
+                  onTooltipShow={showTooltip}
+                />
+              ))}
+              {outlinedMainlandPaths.map(({ feature, path }) => (
+                <path
+                  aria-hidden="true"
+                  d={path}
+                  fill="none"
+                  key={`active-${feature.properties.code}`}
+                  pointerEvents="none"
+                  stroke={activeStroke}
+                  strokeWidth={activeStrokeWidth}
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </g>
             {insetPaths.map(({ inset, path }, index) => (
               <MapInset
                 key={`inset-${inset.feature.properties.code}`}
@@ -229,9 +283,9 @@ function AdministrativeMap({
                 defaultFill={defaultFill}
                 defaultStroke={defaultStroke}
                 defaultStrokeWidth={defaultStrokeWidth}
-                hoveredCode={hoveredCode}
-                focusedCode={focusedCode}
-                onFocusChange={setFocusedCode}
+                hoverFill={hoverFill}
+                isDesktop={isDesktop}
+                hoveredCode={isDesktop ? hoveredCode : aimedCode}
                 onHoverChange={setHoveredCode}
                 onSelect={toggleActiveValue}
                 onTooltipHide={hideTooltip}
@@ -241,7 +295,16 @@ function AdministrativeMap({
             ))}
           </svg>
         ) : null}
-        {tooltip ? (
+        <MapZoomControls {...viewport} />
+        {!isDesktop ? <MapCrosshair /> : null}
+        {!isDesktop ? (
+          <AdministrativeAimPanel
+            activeValues={activeValues}
+            feature={aimedCode ? featuresByCode.get(aimedCode) : undefined}
+            getInterest={selectionInterest.getInterest}
+          />
+        ) : null}
+        {isDesktop && tooltip ? (
           <MapTooltip
             activeValues={activeValues}
             getInterest={selectionInterest.getInterest}
@@ -251,73 +314,12 @@ function AdministrativeMap({
       </div>
 
       <MapDensityLegend
+        averageSelectionsPerOption={
+          selectionInterest.averageSelectionsPerOption
+        }
         densityFills={densityFills}
         legendItems={selectionInterest.legendItems}
       />
-
-      <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.7fr)]">
-        <div>
-          <label className="text-sm font-semibold" htmlFor={`${id}-select`}>
-            Chọn {isWardMap ? 'phường/xã' : 'tỉnh/thành'}
-          </label>
-          <select
-            className="mt-2 min-h-11 w-full rounded-md border bg-background px-3 text-sm text-foreground"
-            disabled={!data}
-            id={`${id}-select`}
-            multiple
-            size={Math.min(data?.features.length ?? 4, 6)}
-            value={activeValues}
-            onChange={(event) =>
-              onChange(
-                Array.from(
-                  event.currentTarget.selectedOptions,
-                  (option) => option.value
-                )
-              )
-            }
-          >
-            {data?.features.map((feature) => (
-              <option
-                key={feature.properties.code}
-                value={feature.properties.code}
-              >
-                {feature.properties.fullName} — {feature.properties.code}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div aria-live="polite" className="rounded-lg bg-muted p-4">
-          {selectedFeatures.length > 0 ? (
-            <div>
-              <p className="text-sm font-semibold">
-                Đã chọn {selectedFeatures.length} đơn vị
-              </p>
-              <ul className="mt-2 grid gap-2">
-                {selectedFeatures.map((feature) => (
-                  <li key={feature.properties.code} className="text-sm">
-                    <span className="font-medium">
-                      {feature.properties.fullName}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {' '}
-                      — {feature.properties.code}
-                      {feature.properties.areaKm2
-                        ? ` · ${formatArea(feature.properties.areaKm2)} km²`
-                        : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Chọn một hoặc nhiều vùng trên bản đồ hoặc từ danh sách để xem
-              thông tin.
-            </p>
-          )}
-        </div>
-      </div>
     </section>
   )
 }
@@ -330,11 +332,11 @@ type RegionPathProps = {
   defaultFill: string
   defaultStroke: string
   defaultStrokeWidth: number
+  hoverFill: string
+  isDesktop: boolean
   feature: AdministrativeFeature
-  focused: boolean
   hovered: boolean
   path: string
-  onFocusChange: (code: string) => void
   onHoverChange: (code: string) => void
   onSelect: (code: string) => void
   onTooltipHide: () => void
@@ -353,11 +355,11 @@ function RegionPath({
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
+  hoverFill,
+  isDesktop,
   feature,
-  focused,
   hovered,
   path,
-  onFocusChange,
   onHoverChange,
   onSelect,
   onTooltipHide,
@@ -373,28 +375,24 @@ function RegionPath({
       aria-label={`${fullName}, mã ${code}`}
       aria-pressed={selected}
       className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
+      data-map-location={code}
       d={path}
       fill={
         interest.level === null && hovered
-          ? defaultStroke
+          ? hoverFill
           : getInterestFill(interest, densityFills, defaultFill)
       }
       role="button"
       stroke={selected ? activeStroke : defaultStroke}
-      strokeWidth={
-        selected || focused
-          ? Math.max(activeStrokeWidth, defaultStrokeWidth)
-          : defaultStrokeWidth
-      }
+      strokeWidth={selected ? activeStrokeWidth : defaultStrokeWidth}
       style={{ outline: 'none' }}
       tabIndex={0}
+      vectorEffect="non-scaling-stroke"
       onBlur={() => {
-        onFocusChange('')
         onHoverChange('')
       }}
       onClick={() => onSelect(code)}
       onFocus={() => {
-        onFocusChange(code)
         onHoverChange(code)
       }}
       onKeyDown={(event) => {
@@ -404,14 +402,18 @@ function RegionPath({
         }
       }}
       onPointerEnter={(event) => {
+        if (!isDesktop) return
         onHoverChange(code)
         onTooltipShow(event, feature)
       }}
       onPointerLeave={() => {
+        if (!isDesktop) return
         onHoverChange('')
         onTooltipHide()
       }}
-      onPointerMove={(event) => onTooltipShow(event, feature)}
+      onPointerMove={(event) => {
+        if (isDesktop) onTooltipShow(event, feature)
+      }}
     />
   )
 }
@@ -424,11 +426,11 @@ type MapInsetProps = {
   defaultFill: string
   defaultStroke: string
   defaultStrokeWidth: number
-  focusedCode: string
+  hoverFill: string
+  isDesktop: boolean
   hoveredCode: string
   index: number
   inset: Inset
-  onFocusChange: (code: string) => void
   onHoverChange: (code: string) => void
   onSelect: (code: string) => void
   onTooltipHide: () => void
@@ -446,13 +448,13 @@ function MapInset({
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
-  focusedCode,
+  hoverFill,
+  isDesktop,
   hoveredCode,
   index,
   inset,
   path,
   total,
-  onFocusChange,
   onHoverChange,
   onSelect,
   onTooltipHide,
@@ -464,7 +466,6 @@ function MapInset({
   const frame = insetFrame(index, total)
   const selected = activeValues.includes(code)
   const hovered = code === hoveredCode
-  const focused = code === focusedCode
   const interest = getInterest(code)
   const fill = getInterestFill(interest, densityFills, defaultFill)
 
@@ -474,28 +475,24 @@ function MapInset({
         aria-label={`${label}, chọn ${feature.properties.fullName}, mã ${code}`}
         aria-pressed={selected}
         className="cursor-pointer transition-colors duration-200 motion-reduce:transition-none"
-        fill={interest.level === null && hovered ? defaultStroke : fill}
+        data-map-location={code}
+        fill={interest.level === null && hovered ? hoverFill : fill}
         height={frame.height}
         rx="12"
         role="button"
         stroke={selected ? activeStroke : defaultStroke}
-        strokeWidth={
-          selected || focused
-            ? Math.max(activeStrokeWidth, defaultStrokeWidth)
-            : defaultStrokeWidth
-        }
+        strokeWidth={selected ? activeStrokeWidth : defaultStrokeWidth}
         style={{ outline: 'none' }}
         tabIndex={0}
+        vectorEffect="non-scaling-stroke"
         width={frame.width}
         x={frame.x}
         y={frame.y}
         onBlur={() => {
-          onFocusChange('')
           onHoverChange('')
         }}
         onClick={() => onSelect(code)}
         onFocus={() => {
-          onFocusChange(code)
           onHoverChange(code)
         }}
         onKeyDown={(event) => {
@@ -505,14 +502,18 @@ function MapInset({
           }
         }}
         onPointerEnter={(event) => {
+          if (!isDesktop) return
           onHoverChange(code)
           onTooltipShow(event, feature)
         }}
         onPointerLeave={() => {
+          if (!isDesktop) return
           onHoverChange('')
           onTooltipHide()
         }}
-        onPointerMove={(event) => onTooltipShow(event, feature)}
+        onPointerMove={(event) => {
+          if (isDesktop) onTooltipShow(event, feature)
+        }}
       />
       <text
         fill="var(--foreground)"
@@ -531,11 +532,8 @@ function MapInset({
         fill={fill}
         pointerEvents="none"
         stroke={selected ? activeStroke : defaultStroke}
-        strokeWidth={
-          selected || focused
-            ? Math.max(activeStrokeWidth, defaultStrokeWidth)
-            : defaultStrokeWidth
-        }
+        strokeWidth={selected ? activeStrokeWidth : defaultStrokeWidth}
+        vectorEffect="non-scaling-stroke"
       />
     </g>
   )
@@ -562,17 +560,64 @@ function MapTooltip({
       <p className="mt-0.5 text-muted-foreground">Mã: {code}</p>
       <p className="mt-0.5 text-muted-foreground">
         {interest.count > 0
-          ? `${interest.count} thành viên đã chọn${selected ? ' (bao gồm bạn)' : ''} · Mức ${interest.level} (${formatLift(interest.lift)}× trung bình)`
-          : 'Chưa có thành viên chọn'}
+          ? selected
+            ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+            : `${interest.count} SC-ers đã đến đây`
+          : 'Chưa có SC-er nào check-in ở đây'}
       </p>
     </div>
   )
 }
 
-function formatLift(lift: number) {
-  return new Intl.NumberFormat('vi-VN', {
-    maximumFractionDigits: 2
-  }).format(lift)
+function MapCrosshair() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center"
+    >
+      <span className="absolute h-px w-full bg-foreground/80" />
+      <span className="absolute h-full w-px bg-foreground/80" />
+      <span className="size-2 rounded-full border border-foreground bg-[var(--map-background)]" />
+    </div>
+  )
+}
+
+function AdministrativeAimPanel({
+  activeValues,
+  feature,
+  getInterest
+}: Pick<MapProps, 'activeValues'> & {
+  feature: AdministrativeFeature | undefined
+  getInterest: (value: string) => SelectionInterest
+}) {
+  const code = feature?.properties.code ?? ''
+  const interest = getInterest(code)
+  const selected = activeValues.includes(code)
+
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs shadow-sm"
+    >
+      {feature ? (
+        <>
+          <p className="font-semibold">{feature.properties.fullName}</p>
+          <p className="mt-0.5 text-muted-foreground">Mã: {code}</p>
+          <p className="mt-0.5 text-muted-foreground">
+            {interest.count > 0
+              ? selected
+                ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+                : `${interest.count} SC-ers đã đến đây`
+              : 'Chưa có SC-er nào check-in ở đây'}
+          </p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">
+          Đưa một địa điểm vào tâm ngắm để xem thông tin.
+        </p>
+      )}
+    </div>
+  )
 }
 
 function useDeferredGeoData(
@@ -611,9 +656,9 @@ function useDeferredGeoData(
       .then((response) => {
         if (!response.ok)
           throw new Error(`Không thể tải dữ liệu (${response.status}).`)
-        return response.json() as Promise<AdministrativeCollection>
+        return response.json()
       })
-      .then(setData)
+      .then((loadedData) => setData(loadedData as AdministrativeCollection))
       .catch((requestError: unknown) => {
         if (
           requestError instanceof DOMException &&
@@ -651,6 +696,24 @@ function useElementWidth<T extends HTMLElement>() {
   }, [])
 
   return [ref, width] as const
+}
+
+function useDesktopViewport() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined'
+      ? window.matchMedia(DESKTOP_BREAKPOINT).matches
+      : false
+  )
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(DESKTOP_BREAKPOINT)
+    const syncViewport = () => setIsDesktop(mediaQuery.matches)
+    syncViewport()
+    mediaQuery.addEventListener('change', syncViewport)
+    return () => mediaQuery.removeEventListener('change', syncViewport)
+  }, [])
+
+  return isDesktop
 }
 
 function createMapPresentation(
@@ -818,12 +881,6 @@ function insetFrame(index: number, total: number) {
     x: INSET_X,
     y: startY + index * (INSET_HEIGHT + INSET_GAP)
   }
-}
-
-function formatArea(area: number) {
-  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(
-    area
-  )
 }
 
 function MapSkeleton() {

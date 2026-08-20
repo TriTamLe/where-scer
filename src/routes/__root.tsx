@@ -45,12 +45,21 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const runtimeConfig = JSON.stringify({
+    convexUrl: typeof process === 'undefined' ? '' : process.env.VITE_CONVEX_URL
+  }).replace(/</g, '\\u003c')
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__WHERE_SCER_CONFIG__=${runtimeConfig};`
+          }}
+        />
         {children}
         <FaviconThemeSync />
         <Scripts />

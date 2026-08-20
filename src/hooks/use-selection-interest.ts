@@ -13,38 +13,52 @@ type InterestLegendItem = {
   level: InterestLevel
 }
 type UseSelectionInterestOptions = {
-  activeValues: readonly string[]
   optionCount: number
-  otherSelectionCounts: Readonly<Record<string, number>>
+  selectionCounts: Readonly<Record<string, number>>
 }
 
-const RELATIVE_INTEREST_LEGEND_ITEMS: readonly InterestLegendItem[] = [
-  { level: 1, label: 'Mức 1 · Thấp: dưới 0,75× trung bình' },
-  { level: 2, label: 'Mức 2 · Trung bình: 0,75×–<1,25×' },
-  { level: 3, label: 'Mức 3 · Cao: 1,25×–<1,75×' },
-  { level: 4, label: 'Mức 4 · Rất cao: từ 1,75× trung bình' }
-]
+function createLegendItems(averageSelectionsPerOption: number) {
+  if (averageSelectionsPerOption === 0) {
+    return [
+      { level: 1, label: 'Mức 1 · Chưa có check-in' },
+      { level: 2, label: 'Mức 2 · Chưa có check-in' },
+      { level: 3, label: 'Mức 3 · Chưa có check-in' },
+      { level: 4, label: 'Mức 4 · Chưa có check-in' }
+    ] as const satisfies readonly InterestLegendItem[]
+  }
+
+  const low = formatCheckinCount(averageSelectionsPerOption * 0.75)
+  const medium = formatCheckinCount(averageSelectionsPerOption * 1.25)
+  const high = formatCheckinCount(averageSelectionsPerOption * 1.75)
+
+  return [
+    { level: 1, label: `Mức 1 · Dưới ${low} check-in` },
+    { level: 2, label: `Mức 2 · ${low}–<${medium} check-in` },
+    { level: 3, label: `Mức 3 · ${medium}–<${high} check-in` },
+    { level: 4, label: `Mức 4 · Từ ${high} check-in` }
+  ] as const satisfies readonly InterestLegendItem[]
+}
+
+function formatCheckinCount(value: number) {
+  return new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: 1
+  }).format(value)
+}
 
 function getSelectionCount(
   value: string,
-  activeValues: readonly string[],
-  otherSelectionCounts: Readonly<Record<string, number>>
+  selectionCounts: Readonly<Record<string, number>>
 ) {
-  return (
-    (otherSelectionCounts[value] ?? 0) + (activeValues.includes(value) ? 1 : 0)
-  )
+  return selectionCounts[value] ?? 0
 }
 
 function calculateTotalSelections(
-  activeValues: readonly string[],
-  otherSelectionCounts: Readonly<Record<string, number>>
+  selectionCounts: Readonly<Record<string, number>>
 ) {
-  const otherSelections = Object.values(otherSelectionCounts).reduce(
+  return Object.values(selectionCounts).reduce(
     (total, count) => total + count,
     0
   )
-
-  return otherSelections + new Set(activeValues).size
 }
 
 function calculateRelativeInterest(
@@ -75,20 +89,16 @@ function getInterestFill(
 }
 
 function useSelectionInterest({
-  activeValues,
   optionCount,
-  otherSelectionCounts
+  selectionCounts
 }: UseSelectionInterestOptions) {
   return useMemo(() => {
-    const totalSelections = calculateTotalSelections(
-      activeValues,
-      otherSelectionCounts
-    )
+    const totalSelections = calculateTotalSelections(selectionCounts)
     const averageSelectionsPerOption =
       optionCount > 0 ? totalSelections / optionCount : 0
 
     function getInterest(value: string): SelectionInterest {
-      const count = getSelectionCount(value, activeValues, otherSelectionCounts)
+      const count = getSelectionCount(value, selectionCounts)
       const lift = calculateRelativeInterest(
         count,
         optionCount,
@@ -105,10 +115,10 @@ function useSelectionInterest({
     return {
       averageSelectionsPerOption,
       getInterest,
-      legendItems: RELATIVE_INTEREST_LEGEND_ITEMS,
+      legendItems: createLegendItems(averageSelectionsPerOption),
       totalSelections
     }
-  }, [activeValues, optionCount, otherSelectionCounts])
+  }, [optionCount, selectionCounts])
 }
 
 export {
@@ -117,7 +127,6 @@ export {
   classifyRelativeInterest,
   getInterestFill,
   getSelectionCount,
-  RELATIVE_INTEREST_LEGEND_ITEMS,
   useSelectionInterest
 }
 export type { InterestLegendItem, InterestLevel, SelectionInterest }

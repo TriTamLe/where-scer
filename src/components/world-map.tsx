@@ -5,7 +5,7 @@ import { Chart } from '@tanstack/react-charts'
 import { geoContains, geoEqualEarth, geoOrthographic } from 'd3-geo'
 import type { GeoProjection } from 'd3-geo'
 import { numericToAlpha2 } from 'i18n-iso-countries'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { feature } from 'topojson-client'
 import type {
   GeometryCollection,
@@ -16,10 +16,12 @@ import worldAtlas from 'world-atlas/countries-110m.json'
 
 import { MapDensityLegend } from '#/components/map-density.tsx'
 import type { MapProps } from '#/components/map-types.ts'
+import { MapZoomControls, useMapViewport } from '#/components/map-viewport.tsx'
 import {
   getInterestFill,
   useSelectionInterest
 } from '#/hooks/use-selection-interest.ts'
+import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
 
 type CountryProperties = {
   name?: string
@@ -74,11 +76,17 @@ function WorldMap({
   defaultFill,
   defaultStroke,
   defaultStrokeWidth,
+  hoverFill,
   onChange,
-  otherSelectionCounts
+  selectionCounts
 }: MapProps) {
+  const id = useId()
   const isDesktop = useDesktopViewport()
+  const viewport = useMapViewport({ panEnabled: isDesktop })
   const [hoveredId, setHoveredId] = useState<string | number | undefined>()
+  const [aimedCountry, setAimedCountry] = useState<
+    (typeof countries)[number] | undefined
+  >()
   const [rotation, setRotation] = useState<Rotation>({
     latitude: -18,
     longitude: 0
@@ -94,9 +102,8 @@ function WorldMap({
   const isDragging = useRef(false)
   const didDrag = useRef(false)
   const selectionInterest = useSelectionInterest({
-    activeValues,
     optionCount: WORLD_MAP_VALUES.length,
-    otherSelectionCounts
+    selectionCounts
   })
   const activeCountries = useMemo(
     () =>
@@ -124,7 +131,7 @@ function WorldMap({
         marks: [
           geoShape(countries, {
             className:
-              'world-map-countries [&_path]:transition-colors [&_path]:duration-200',
+              'world-map-countries [&_path]:[vector-effect:non-scaling-stroke] [&_path]:transition-colors [&_path]:duration-200',
             id: 'countries',
             key: (country) => country.id ?? country.properties.name,
             projection: ({ chart: bounds }) => {
@@ -141,6 +148,17 @@ function WorldMap({
                 ],
                 SPHERE
               )
+              if (isDesktop) {
+                const [baseX, baseY] = projection.translate()
+                projection
+                  .scale(projection.scale() * viewport.zoom)
+                  .translate([
+                    baseX + viewport.panX * bounds.width,
+                    baseY + viewport.panY * bounds.height
+                  ])
+              } else {
+                projection.scale(projection.scale() * viewport.zoom)
+              }
               activeProjection.current = {
                 isGlobe: !isDesktop,
                 projection
@@ -153,7 +171,7 @@ function WorldMap({
               const interest = selectionInterest.getInterest(code)
 
               return interest.level === null && hoveredId === country.id
-                ? defaultStroke
+                ? hoverFill
                 : getInterestFill(interest, densityFills, defaultFill)
             },
             stroke: (country) =>
@@ -164,7 +182,8 @@ function WorldMap({
             strokeWidth: defaultStrokeWidth
           }),
           geoShape(activeCountries, {
-            className: 'pointer-events-none',
+            className:
+              'pointer-events-none [&_path]:[vector-effect:non-scaling-stroke]',
             id: 'active-countries',
             key: (country) => country.id ?? country.properties.name,
             projection: ({ chart: bounds }) => {
@@ -181,6 +200,17 @@ function WorldMap({
                 ],
                 SPHERE
               )
+              if (isDesktop) {
+                const [baseX, baseY] = projection.translate()
+                projection
+                  .scale(projection.scale() * viewport.zoom)
+                  .translate([
+                    baseX + viewport.panX * bounds.width,
+                    baseY + viewport.panY * bounds.height
+                  ])
+              } else {
+                projection.scale(projection.scale() * viewport.zoom)
+              }
 
               return projection
             },
@@ -203,23 +233,21 @@ function WorldMap({
           group: (_points, { point }) => [point],
           navigation: (points) => points
         },
-        tooltip: {
-          use: tooltip,
-          className:
-            'rounded-md border border-border bg-popover px-3 py-2 text-sm font-semibold text-popover-foreground shadow-md',
-          format: (point) => {
-            const { flag, name } = point.datum.properties
-            const code = String(point.datum.id)
-            const interest = selectionInterest.getInterest(code)
-            const heading = flag ? `${flag} ${name}` : name
-            const count =
-              interest.count > 0
-                ? `${interest.count} thành viên đã chọn${activeValues.includes(code) ? ' (bao gồm bạn)' : ''} · Mức ${interest.level} (${formatLift(interest.lift)}× trung bình)`
-                : 'Chưa có thành viên chọn'
-
-            return `${heading}\nMã: ${code}\n${count}`
-          }
-        }
+        ...(isDesktop
+          ? {
+              tooltip: {
+                use: tooltip,
+                className:
+                  'rounded-md border border-border bg-popover px-3 py-2 text-sm font-semibold text-popover-foreground shadow-md',
+                format: (point) =>
+                  formatCountryMessage(
+                    point.datum,
+                    activeValues,
+                    selectionInterest
+                  )
+              }
+            }
+          : {})
       }),
     [
       activeStroke,
@@ -230,30 +258,43 @@ function WorldMap({
       defaultFill,
       defaultStroke,
       defaultStrokeWidth,
+      hoverFill,
       hoveredId,
       isDesktop,
       rotation,
-      selectionInterest
+      selectionInterest,
+      viewport.panX,
+      viewport.panY,
+      viewport.zoom
     ]
   )
 
   const handleFocusChange = useCallback(
     (point: (typeof countries)[number] | null) => {
-      if (!isDragging.current) setHoveredId(point?.id)
+      if (isDesktop && !isDragging.current) setHoveredId(point?.id)
     },
-    []
+    [isDesktop]
   )
 
   const handleSelect = useCallback(
     (point: (typeof countries)[number] | null) => {
-      if (isDragging.current) return
+      if (!isDesktop || isDragging.current || viewport.isPanningRef.current)
+        return
       if (point?.id !== undefined) toggleActiveValue(String(point.id))
     },
-    [toggleActiveValue]
+    [isDesktop, toggleActiveValue, viewport.isPanningRef]
   )
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (isDesktop) return
+    viewport.onPointerDown(event)
+    if (isDesktop) {
+      return
+    }
+
+    if (viewport.isPinchingRef.current) {
+      drag.current = null
+      return
+    }
 
     drag.current = {
       latitude: rotation.latitude,
@@ -267,6 +308,13 @@ function WorldMap({
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    viewport.onPointerMove(event)
+    if (isDesktop) {
+      return
+    }
+
+    if (viewport.isPinchingRef.current) return
+
     const dragState = drag.current
     if (!dragState || dragState.pointerId !== event.pointerId) return
 
@@ -289,6 +337,11 @@ function WorldMap({
   }
 
   function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    viewport.onPointerEnd(event)
+    if (isDesktop) {
+      return
+    }
+
     if (drag.current?.pointerId !== event.pointerId) return
 
     drag.current = null
@@ -298,6 +351,7 @@ function WorldMap({
   }
 
   function handleTapSelection(event: React.MouseEvent<HTMLDivElement>) {
+    if (event.defaultPrevented) return
     if (didDrag.current) return
 
     const country = countryAtEventTarget(event.target)
@@ -316,29 +370,81 @@ function WorldMap({
     if (country.id !== undefined) toggleActiveValue(String(country.id))
   }
 
+  useEffect(() => {
+    if (isDesktop) return
+    const frame = window.requestAnimationFrame(() => {
+      const projection = activeProjection.current?.projection
+      if (!projection) return
+      const [x, y] = projection.translate()
+      setAimedCountry(countryAtPointer(activeProjection.current, x, y))
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [isDesktop, rotation, viewport.zoom])
+
   return (
-    <section aria-label="Bản đồ thế giới">
+    <section
+      aria-labelledby={`${id}-title`}
+      className="flex h-[42rem] w-full flex-col border-b border-divider pb-8"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-2xl">
+          <h2 id={`${id}-title`} className="text-xl font-semibold sm:text-2xl">
+            Bản đồ Thế giới
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Chọn một hoặc nhiều quốc gia để xem số SC-ers đã check-in.
+          </p>
+        </div>
+        <p className="shrink-0 text-sm text-muted-foreground">
+          {WORLD_MAP_VALUES.length} quốc gia
+        </p>
+      </div>
       <div
-        className="relative mx-auto min-h-88 w-full max-w-[1800px] touch-none overflow-hidden rounded-xl border bg-background shadow-md md:min-h-[min(76vh,52rem)]"
+        ref={viewport.wheelRef}
+        className="relative mt-5 min-h-0 w-full flex-1 touch-none overflow-hidden rounded-lg border bg-[var(--map-background)]"
         data-projection={isDesktop ? 'equal-earth' : 'globe'}
-        onClickCapture={handleTapSelection}
+        onClickCapture={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.closest('[data-map-controls]')
+          ) {
+            return
+          }
+          viewport.onClickCapture(event)
+          if (!isDesktop) handleTapSelection(event)
+        }}
         onPointerCancel={handlePointerEnd}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
       >
+        <MapZoomControls {...viewport} />
         <Chart
           ariaDescription="Explore country names and flags. On smaller screens, drag the globe to rotate it."
           ariaLabel="Interactive world map"
           aspectRatio={isDesktop ? 2.15 : 1}
-          className="block w-full"
+          className="block h-full w-full"
           definition={chart}
           initialWidth={1440}
           onFocusChange={(point) => handleFocusChange(point?.datum ?? null)}
           onSelect={(point) => handleSelect(point?.datum ?? null)}
         />
+        {!isDesktop ? (
+          <>
+            <MapCrosshair />
+            <CountryAimPanel
+              activeValues={activeValues}
+              country={aimedCountry}
+              getInterest={selectionInterest.getInterest}
+            />
+          </>
+        ) : null}
       </div>
       <MapDensityLegend
+        averageSelectionsPerOption={
+          selectionInterest.averageSelectionsPerOption
+        }
         densityFills={densityFills}
         legendItems={selectionInterest.legendItems}
       />
@@ -364,6 +470,78 @@ function useDesktopViewport() {
   }, [])
 
   return isDesktop
+}
+
+function formatCountryMessage(
+  country: (typeof countries)[number],
+  activeValues: readonly string[],
+  selectionInterest: { getInterest: (value: string) => SelectionInterest }
+) {
+  const code = String(country.id)
+  const interest = selectionInterest.getInterest(code)
+  const { flag, name } = country.properties
+  const heading = flag ? `${flag} ${name}` : name
+  const count =
+    interest.count > 0
+      ? activeValues.includes(code)
+        ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+        : `${interest.count} SC-ers đã đến đây`
+      : 'Chưa có SC-er nào check-in ở đây'
+
+  return `${heading}\n${count}`
+}
+
+function MapCrosshair() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute left-1/2 top-1/2 z-10 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center"
+    >
+      <span className="absolute h-px w-full bg-foreground/80" />
+      <span className="absolute h-full w-px bg-foreground/80" />
+      <span className="size-2 rounded-full border border-foreground bg-[var(--map-background)]" />
+    </div>
+  )
+}
+
+function CountryAimPanel({
+  activeValues,
+  country,
+  getInterest
+}: Pick<MapProps, 'activeValues'> & {
+  country: (typeof countries)[number] | undefined
+  getInterest: (value: string) => SelectionInterest
+}) {
+  const code = country?.id === undefined ? '' : String(country.id)
+  const interest = getInterest(code)
+  const selected = activeValues.includes(code)
+
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-border bg-popover/95 px-3 py-2 text-xs shadow-sm"
+    >
+      {country ? (
+        <>
+          <p className="font-semibold">
+            {country.properties.flag ? `${country.properties.flag} ` : ''}
+            {country.properties.name}
+          </p>
+          <p className="mt-0.5 text-muted-foreground">
+            {interest.count > 0
+              ? selected
+                ? `Bạn và ${Math.max(interest.count - 1, 0)} SC-ers khác đã đến đây`
+                : `${interest.count} SC-ers đã đến đây`
+              : 'Chưa có SC-er nào check-in ở đây'}
+          </p>
+        </>
+      ) : (
+        <p className="text-muted-foreground">
+          Đưa một địa điểm vào tâm ngắm để xem thông tin.
+        </p>
+      )}
+    </div>
+  )
 }
 
 function countryFlag(countryId: string | number | undefined) {
@@ -422,10 +600,10 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
-function formatLift(lift: number) {
-  return new Intl.NumberFormat('vi-VN', {
-    maximumFractionDigits: 2
-  }).format(lift)
-}
+const WORLD_LOCATIONS = countries.flatMap((country) =>
+  country.id === undefined
+    ? []
+    : [{ code: String(country.id), name: country.properties.name }]
+)
 
-export { WORLD_MAP_VALUES, WorldMap }
+export { WORLD_LOCATIONS, WORLD_MAP_VALUES, WorldMap }

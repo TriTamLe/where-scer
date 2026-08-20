@@ -3,14 +3,23 @@ import type { InterestLegendItem } from '#/hooks/use-selection-interest.ts'
 
 function MapDensityLegend({
   densityFills,
-  legendItems
+  legendItems,
+  averageSelectionsPerOption
 }: {
   densityFills: DensityFills
   legendItems: readonly InterestLegendItem[]
+  averageSelectionsPerOption: number
 }) {
   return (
     <div aria-label="Chú giải mật độ check-in" className="mt-4">
       <p className="text-sm font-semibold">Mật độ check-in</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Trung bình:{' '}
+        {averageSelectionsPerOption.toLocaleString('vi-VN', {
+          maximumFractionDigits: 1
+        })}{' '}
+        check-in/địa điểm
+      </p>
       <ul className="mt-2 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-4">
         {legendItems.map(({ label, level }) => {
           const fill = densityFills[level - 1]

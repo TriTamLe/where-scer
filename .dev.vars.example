@@ -1,0 +1,2 @@
+# Public Convex deployment URL. Copy this file to .dev.vars for `wrangler dev`.
+VITE_CONVEX_URL=https://notable-lynx-15.convex.cloud

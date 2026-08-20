@@ -2,3 +2,8 @@
 .wrangler
 dist
 .yarn
+.env
+.dev.vars
+worker-configuration.d.ts
+
+.env.local

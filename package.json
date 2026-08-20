@@ -19,7 +19,9 @@
     "build:resume": "node --env-file=.dev.vars scripts/build-resume.mjs",
     "test:resume": "node --test scripts/build-resume.test.mjs",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:origin": "npx convex run accounts:seedSpecial",
+    "seed:demo-accounts": "node scripts/seed-demo-accounts.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -30,6 +32,7 @@
     "@tanstack/react-start": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "convex": "^1.44.0",
     "d3-geo": "^3.1.1",
     "i18n-iso-countries": "^7.14.0",
     "lowlight": "^3.3.0",
