@@ -56,6 +56,7 @@ function WhereScerPage() {
   const updateNickname = useMutation(api.accounts.updateNickname)
   const [tab, setTab] = useState<Tab>('country')
   const mapStats = useQuery(api.checkins.mapStats, { type: tab })
+  const summary = useQuery(api.checkins.summary)
   const exportCounts = useQuery(
     api.checkins.exportCounts,
     mine?.canExport && code ? { code } : 'skip'
@@ -284,6 +285,20 @@ function WhereScerPage() {
                     {mine.account.publicId}
                   </span>
                 </p>
+                <dl className="mt-4 flex flex-wrap divide-x divide-divider text-sm">
+                  <div className="pr-4">
+                    <dt className="text-muted-foreground">SC-ers đã check-in</dt>
+                    <dd className="mt-1 text-xl font-semibold tabular-nums">
+                      {summary?.checkedInMemberCount ?? '—'}
+                    </dd>
+                  </div>
+                  <div className="pl-4">
+                    <dt className="text-muted-foreground">Quốc gia đã check-in</dt>
+                    <dd className="mt-1 text-xl font-semibold tabular-nums">
+                      {summary?.checkedInCountryCount ?? '—'}
+                    </dd>
+                  </div>
+                </dl>
               </div>
             </div>
             <Button

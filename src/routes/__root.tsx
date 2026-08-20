@@ -46,7 +46,12 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const runtimeConfig = JSON.stringify({
-    convexUrl: typeof process === 'undefined' ? '' : process.env.VITE_CONVEX_URL
+    convexSiteUrl:
+      typeof process === 'undefined'
+        ? undefined
+        : process.env.VITE_CONVEX_SITE_URL,
+    convexUrl:
+      typeof process === 'undefined' ? undefined : process.env.VITE_CONVEX_URL
   }).replace(/</g, '\\u003c')
 
   return (

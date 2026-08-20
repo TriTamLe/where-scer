@@ -134,6 +134,26 @@ export const mapStats = query({
   }
 })
 
+export const summary = query({
+  args: {},
+  handler: async (ctx) => {
+    const [checkins, countryStats] = await Promise.all([
+      ctx.db.query('checkins').collect(),
+      ctx.db
+        .query('locationStats')
+        .withIndex('by_type', (index) => index.eq('type', 'country'))
+        .collect()
+    ])
+
+    return {
+      checkedInCountryCount: countryStats.filter((stat) => stat.count > 0)
+        .length,
+      checkedInMemberCount: new Set(checkins.map((checkin) => checkin.accountId))
+        .size
+    }
+  }
+})
+
 export const exportCounts = query({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {

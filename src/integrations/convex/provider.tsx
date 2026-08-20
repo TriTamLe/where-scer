@@ -3,15 +3,15 @@ import type { ReactNode } from 'react'
 
 declare global {
   interface Window {
-    __WHERE_SCER_CONFIG__?: { convexUrl?: string }
+    __WHERE_SCER_CONFIG__?: { convexSiteUrl?: string; convexUrl?: string }
   }
 }
 
 const convexUrl =
-  (typeof window === 'undefined'
+  typeof window === 'undefined'
     ? undefined
-    : window.__WHERE_SCER_CONFIG__?.convexUrl) ??
-  import.meta.env.VITE_CONVEX_URL
+    : (window.__WHERE_SCER_CONFIG__?.convexUrl ??
+      (import.meta.env.DEV ? import.meta.env.VITE_CONVEX_URL : undefined))
 const client = new ConvexReactClient(
   convexUrl ?? 'https://missing-convex-url.convex.cloud'
 )

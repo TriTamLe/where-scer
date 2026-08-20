@@ -1,10 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tam-portfolio",
+  "keep_vars": true,
   "compatibility_date": "2025-09-02",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": {
-    "VITE_CONVEX_URL": "https://notable-lynx-15.convex.cloud"
+  "secrets": {
+    "required": ["VITE_CONVEX_URL", "VITE_CONVEX_SITE_URL"]
   },
   "main": "@tanstack/react-start/server-entry"
 }
