@@ -45,6 +45,7 @@ const DEMO_CHECKINS = {
 } as const
 
 const codeValidator = v.string()
+const MAX_NICKNAME_WORDS = 10
 
 function normalizeCode(code: string) {
   return code.trim().toUpperCase()
@@ -61,6 +62,19 @@ function normalizeNickname(nickname: string) {
         word.slice(1).toLocaleLowerCase('vi-VN')
     )
     .join(' ')
+}
+
+function nicknameWordCount(nickname: string) {
+  return nickname ? nickname.split(' ').length : 0
+}
+
+function validateNickname(nickname: string) {
+  if (nickname.length < 2 || nickname.length > 48) {
+    throw new Error('Nickname cần có từ 2 đến 48 ký tự.')
+  }
+  if (nicknameWordCount(nickname) > MAX_NICKNAME_WORDS) {
+    throw new Error('Nickname chỉ được tối đa 10 từ.')
+  }
 }
 
 function normalizeNicknameSearch(nickname: string) {
@@ -148,9 +162,7 @@ export const create = mutation({
   args: { nickname: v.string() },
   handler: async (ctx, { nickname }) => {
     const normalizedNickname = normalizeNickname(nickname)
-    if (normalizedNickname.length < 2 || normalizedNickname.length > 48) {
-      throw new Error('Nickname cần có từ 2 đến 48 ký tự.')
-    }
+    validateNickname(normalizedNickname)
 
     let code = createCode()
     while (
@@ -181,9 +193,7 @@ export const updateNickname = mutation({
   args: { code: codeValidator, nickname: v.string() },
   handler: async (ctx, { code, nickname }) => {
     const normalizedNickname = normalizeNickname(nickname)
-    if (normalizedNickname.length < 2 || normalizedNickname.length > 48) {
-      throw new Error('Nickname cần có từ 2 đến 48 ký tự.')
-    }
+    validateNickname(normalizedNickname)
 
     const account = await ctx.db
       .query('accounts')

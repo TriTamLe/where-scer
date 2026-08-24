@@ -19,16 +19,23 @@ function formatCheckinMessage({
 }: CheckinMessageOptions) {
   if (count === 0) return `Chưa có SC-er nào check-in ở ${locationKind} này`
 
-  const namedPeople = joinPeople(otherPeople)
-  if (selected) {
-    return namedPeople
-      ? `Bạn và ${namedPeople} đã đến ${locationKind} này`
-      : `Bạn đã đến ${locationKind} này`
-  }
+  const people = otherPeople.slice(0, 2)
+  const namedPeople = joinPeople(people)
+  const namedCount = people.length + (selected ? 1 : 0)
+  const remainingCount = Math.max(0, count - namedCount)
+  const subject = selected
+    ? namedPeople
+      ? `Bạn, ${namedPeople}`
+      : 'Bạn'
+    : namedPeople
+      ? namedPeople
+      : ''
 
-  return namedPeople
-    ? `${namedPeople} đã đến ${locationKind} này`
-    : `${count} SC-er đã đến ${locationKind} này`
+  if (!subject) return `${count} SC-er đã đến ${locationKind} này`
+  if (remainingCount > 0) {
+    return `${subject} và ${remainingCount} SC-er khác đã đến ${locationKind} này`
+  }
+  return `${subject} đã đến ${locationKind} này`
 }
 
 export { formatCheckinMessage }

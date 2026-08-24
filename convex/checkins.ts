@@ -125,37 +125,40 @@ export const toggle = mutation({
 })
 
 export const mapStats = query({
-  args: { code: v.string(), type: locationType },
-  handler: async (ctx, { code, type }) => {
+  args: { type: locationType },
+  handler: async (ctx, { type }) => {
+    const stats = await ctx.db
+      .query('locationStats')
+      .withIndex('by_type', (index) => index.eq('type', type))
+      .collect()
+
+    return stats.map((stat) => ({
+      code: stat.locationCode,
+      count: stat.count
+    }))
+  }
+})
+
+export const locationPeople = query({
+  args: { code: v.string(), locationCode: v.string(), type: locationType },
+  handler: async (ctx, { code, locationCode, type }) => {
     const account = await accountForCode(ctx, code)
     const checkins = await ctx.db
       .query('checkins')
-      .withIndex('by_type_location_account', (index) => index.eq('type', type))
-      .collect()
-    const peopleByAccount = new Map<string, string>()
-    const stats = new Map<string, { count: number; people: string[] }>()
+      .withIndex('by_type_location_account', (index) =>
+        index.eq('type', type).eq('locationCode', locationCode)
+      )
+      .take(3)
+    const people: string[] = []
 
     for (const checkin of checkins) {
-      const stat = stats.get(checkin.locationCode) ?? { count: 0, people: [] }
-      stat.count += 1
-      if (checkin.accountId !== account?._id && stat.people.length < 5) {
-        const accountId = String(checkin.accountId)
-        let nickname = peopleByAccount.get(accountId)
-        if (nickname === undefined) {
-          const person = await ctx.db.get(checkin.accountId)
-          nickname = person?.nickname ?? ''
-          peopleByAccount.set(accountId, nickname)
-        }
-        if (nickname) stat.people.push(nickname)
-      }
-      stats.set(checkin.locationCode, stat)
+      if (checkin.accountId === account?._id) continue
+      const person = await ctx.db.get(checkin.accountId)
+      if (person?.nickname) people.push(person.nickname)
+      if (people.length === 2) break
     }
 
-    return [...stats.entries()].map(([locationCode, stat]) => ({
-      code: locationCode,
-      count: stat.count,
-      people: stat.people
-    }))
+    return people
   }
 })
 

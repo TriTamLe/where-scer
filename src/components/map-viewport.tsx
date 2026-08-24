@@ -10,6 +10,7 @@ const ZOOM_STEP = 0.5
 type MapViewport = { panX: number; panY: number; zoom: number }
 type PointerPosition = { x: number; y: number }
 type Options = {
+  basePan?: number
   enabled?: boolean
   maxZoom?: number
   panEnabled?: boolean
@@ -20,8 +21,8 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum)
 }
 
-function clampViewport(viewport: MapViewport): MapViewport {
-  const maxPan = (viewport.zoom - 1) / 2
+function clampViewport(viewport: MapViewport, basePan = 0): MapViewport {
+  const maxPan = basePan + (viewport.zoom - 1) / 2
   return {
     ...viewport,
     panX: clamp(viewport.panX, -maxPan, maxPan),
@@ -47,6 +48,7 @@ function distance(first: PointerPosition, second: PointerPosition) {
 
 function useMapViewport(options: Options = {}) {
   const {
+    basePan = 0,
     enabled = true,
     maxZoom = DEFAULT_MAX_ZOOM,
     panEnabled = true,
@@ -91,14 +93,17 @@ function useMapViewport(options: Options = {}) {
     (nextZoom: number, anchor: PointerPosition) => {
       setViewport((current) => {
         const zoom = clamp(nextZoom, 1, maxZoom)
-        return clampViewport({
-          zoom,
-          panX: current.panX + (current.zoom - zoom) * anchor.x,
-          panY: current.panY + (current.zoom - zoom) * anchor.y
-        })
+        return clampViewport(
+          {
+            zoom,
+            panX: current.panX + (current.zoom - zoom) * anchor.x,
+            panY: current.panY + (current.zoom - zoom) * anchor.y
+          },
+          basePan
+        )
       })
     },
-    [maxZoom]
+    [basePan, maxZoom]
   )
 
   const changeZoom = useCallback(
@@ -170,7 +175,7 @@ function useMapViewport(options: Options = {}) {
         beginPinch(event.currentTarget)
         return
       }
-      if (!panEnabled || viewport.zoom <= 1) return
+      if (!panEnabled || (viewport.zoom <= 1 && basePan === 0)) return
       drag.current = {
         panX: viewport.panX,
         panY: viewport.panY,
@@ -181,7 +186,7 @@ function useMapViewport(options: Options = {}) {
       isPanningRef.current = false
       didGestureRef.current = false
     },
-    [beginPinch, enabled, panEnabled, pinchEnabled, viewport]
+    [basePan, beginPinch, enabled, panEnabled, pinchEnabled, viewport]
   )
 
   const onPointerMove = useCallback(
@@ -206,17 +211,20 @@ function useMapViewport(options: Options = {}) {
         )
         didGestureRef.current = true
         setViewport(() =>
-          clampViewport({
-            zoom,
-            panX:
-              pinchState.panX +
-              (pinchState.zoom - zoom) * pinchState.anchor.x +
-              (currentMidpoint.x - pinchState.midpoint.x) / bounds.width,
-            panY:
-              pinchState.panY +
-              (pinchState.zoom - zoom) * pinchState.anchor.y +
-              (currentMidpoint.y - pinchState.midpoint.y) / bounds.height
-          })
+          clampViewport(
+            {
+              zoom,
+              panX:
+                pinchState.panX +
+                (pinchState.zoom - zoom) * pinchState.anchor.x +
+                (currentMidpoint.x - pinchState.midpoint.x) / bounds.width,
+              panY:
+                pinchState.panY +
+                (pinchState.zoom - zoom) * pinchState.anchor.y +
+                (currentMidpoint.y - pinchState.midpoint.y) / bounds.height
+            },
+            basePan
+          )
         )
         return
       }
@@ -232,14 +240,17 @@ function useMapViewport(options: Options = {}) {
       }
       const bounds = event.currentTarget.getBoundingClientRect()
       setViewport((current) =>
-        clampViewport({
-          ...current,
-          panX: dragState.panX + deltaX / bounds.width,
-          panY: dragState.panY + deltaY / bounds.height
-        })
+        clampViewport(
+          {
+            ...current,
+            panX: dragState.panX + deltaX / bounds.width,
+            panY: dragState.panY + deltaY / bounds.height
+          },
+          basePan
+        )
       )
     },
-    [enabled, maxZoom, pinchEnabled]
+    [basePan, enabled, maxZoom, pinchEnabled]
   )
 
   const onPointerEnd = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -263,6 +274,7 @@ function useMapViewport(options: Options = {}) {
 
   return {
     ...viewport,
+    canReset: viewport.zoom !== 1 || viewport.panX !== 0 || viewport.panY !== 0,
     canZoomIn: viewport.zoom < maxZoom,
     canZoomOut: viewport.zoom > 1,
     changeZoom,
@@ -278,14 +290,14 @@ function useMapViewport(options: Options = {}) {
 }
 
 function MapZoomControls({
+  canReset,
   canZoomIn,
   canZoomOut,
   changeZoom,
-  reset,
-  zoom
+  reset
 }: Pick<
   ReturnType<typeof useMapViewport>,
-  'canZoomIn' | 'canZoomOut' | 'changeZoom' | 'reset' | 'zoom'
+  'canReset' | 'canZoomIn' | 'canZoomOut' | 'changeZoom' | 'reset' | 'zoom'
 >) {
   return (
     <div
@@ -316,7 +328,7 @@ function MapZoomControls({
       </Button>
       <Button
         aria-label="Đặt lại vị trí bản đồ"
-        disabled={zoom === 1}
+        disabled={!canReset}
         size="icon-sm"
         variant="outline"
         onClick={reset}

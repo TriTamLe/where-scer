@@ -7,6 +7,11 @@ import { Button } from '#/components/ui/button.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { randomNickname } from '#/data/nicknames.ts'
 import { getSessionCode, setSessionCode } from '#/lib/session.ts'
+import {
+  isNicknameWithinWordLimit,
+  MAX_NICKNAME_WORDS,
+  nicknameWordCount
+} from '#/lib/nickname.ts'
 import { api } from '../../convex/_generated/api'
 
 export const Route = createFileRoute('/')({ component: OnboardingPage })
@@ -43,6 +48,10 @@ function OnboardingPage() {
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!isNicknameWithinWordLimit(nickname)) {
+      setMessage(`Nickname chỉ được tối đa ${MAX_NICKNAME_WORDS} từ.`)
+      return
+    }
     setIsBusy(true)
     setMessage('')
     try {
@@ -124,7 +133,8 @@ function OnboardingPage() {
           {step === 1 ? (
             <>
               <h2 className="mt-6 text-2xl font-semibold tracking-[-0.025em]">
-                Vui lòng nhập 2 câu, 8 chữ mà mọi SC-er đều biết.
+                Vui lòng nhập 2 câu, 8 chữ mà mọi SC-er đều biết. Gợi ý là
+                "Tạo..."
               </h2>
               <p className="mt-2 text-muted-foreground">
                 Viết liền, không dấu nhé.
@@ -160,13 +170,24 @@ function OnboardingPage() {
                 <label className="block text-sm font-semibold">
                   Nickname
                   <Input
+                    aria-describedby="onboarding-nickname-count"
                     className="mt-2"
                     maxLength={48}
                     value={nickname}
-                    onChange={(event) => setNickname(event.target.value)}
+                    onChange={(event) => {
+                      if (isNicknameWithinWordLimit(event.target.value)) {
+                        setNickname(event.target.value)
+                      }
+                    }}
                     placeholder="Ví dụ: Rái cá lấp lánh"
                     required
                   />
+                  <span
+                    className="mt-1 block text-xs font-normal text-muted-foreground"
+                    id="onboarding-nickname-count"
+                  >
+                    {nicknameWordCount(nickname)}/{MAX_NICKNAME_WORDS} từ
+                  </span>
                 </label>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <Button disabled={isBusy} size="lg" type="submit">

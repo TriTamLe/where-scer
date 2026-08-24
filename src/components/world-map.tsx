@@ -2,6 +2,7 @@ import { defineChart } from '@tanstack/charts'
 import { geoShape } from '@tanstack/charts/geo'
 import { tooltip } from '@tanstack/charts/tooltip'
 import { Chart } from '@tanstack/react-charts'
+import { useQuery } from 'convex/react'
 import { geoContains, geoEqualEarth, geoOrthographic } from 'd3-geo'
 import type { GeoProjection } from 'd3-geo'
 import { numericToAlpha2 } from 'i18n-iso-countries'
@@ -22,6 +23,7 @@ import {
 } from '#/hooks/use-selection-interest.ts'
 import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
 import { formatCheckinMessage } from '#/lib/checkin-copy.ts'
+import { api } from '../../convex/_generated/api'
 
 type CountryProperties = {
   name?: string
@@ -69,6 +71,7 @@ const countriesByChartKey = new Map(
 )
 
 function WorldMap({
+  accountCode,
   activeStroke,
   activeStrokeWidth,
   activeValues,
@@ -78,7 +81,6 @@ function WorldMap({
   defaultStrokeWidth,
   hoverFill,
   onChange,
-  peopleByLocation,
   selectionCounts
 }: MapProps) {
   const id = useId()
@@ -105,6 +107,19 @@ function WorldMap({
   const selectionInterest = useSelectionInterest({
     selectionCounts
   })
+  const focusedCode = isDesktop
+    ? hoveredId === undefined
+      ? ''
+      : String(hoveredId)
+    : aimedCountry?.id === undefined
+      ? ''
+      : String(aimedCountry.id)
+  const focusedPeople = useQuery(
+    api.checkins.locationPeople,
+    focusedCode
+      ? { code: accountCode, locationCode: focusedCode, type: 'country' }
+      : 'skip'
+  )
   const activeCountries = useMemo(
     () =>
       countries.filter(
@@ -242,7 +257,9 @@ function WorldMap({
                   formatCountryMessage(
                     point.datum,
                     activeValues,
-                    peopleByLocation,
+                    focusedCode === String(point.datum.id)
+                      ? (focusedPeople ?? [])
+                      : [],
                     selectionInterest
                   )
               }
@@ -261,7 +278,7 @@ function WorldMap({
       hoverFill,
       hoveredId,
       isDesktop,
-      peopleByLocation,
+      focusedPeople,
       rotation,
       selectionInterest,
       viewport.panX,
@@ -438,7 +455,7 @@ function WorldMap({
               activeValues={activeValues}
               country={aimedCountry}
               getInterest={selectionInterest.getInterest}
-              peopleByLocation={peopleByLocation}
+              otherPeople={focusedPeople ?? []}
             />
           </>
         ) : null}
@@ -470,7 +487,7 @@ function useDesktopViewport() {
 function formatCountryMessage(
   country: (typeof countries)[number],
   activeValues: readonly string[],
-  peopleByLocation: MapProps['peopleByLocation'],
+  otherPeople: readonly string[],
   selectionInterest: { getInterest: (value: string) => SelectionInterest }
 ) {
   const code = String(country.id)
@@ -480,7 +497,7 @@ function formatCountryMessage(
   const count = formatCheckinMessage({
     count: interest.count,
     locationKind: 'quốc gia',
-    otherPeople: peopleByLocation[code] ?? [],
+    otherPeople,
     selected: activeValues.includes(code)
   })
 
@@ -504,11 +521,11 @@ function CountryAimPanel({
   activeValues,
   country,
   getInterest,
-  peopleByLocation
+  otherPeople
 }: Pick<MapProps, 'activeValues'> & {
   country: (typeof countries)[number] | undefined
   getInterest: (value: string) => SelectionInterest
-  peopleByLocation: MapProps['peopleByLocation']
+  otherPeople: readonly string[]
 }) {
   const code = country?.id === undefined ? '' : String(country.id)
   const interest = getInterest(code)
@@ -529,7 +546,7 @@ function CountryAimPanel({
             {formatCheckinMessage({
               count: interest.count,
               locationKind: 'quốc gia',
-              otherPeople: peopleByLocation[code] ?? [],
+              otherPeople,
               selected
             })}
           </p>

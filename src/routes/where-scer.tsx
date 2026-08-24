@@ -20,6 +20,11 @@ import { Input } from '#/components/ui/input.tsx'
 import { VietnamMap } from '#/components/vietnam-map.tsx'
 import { WorldMap } from '#/components/world-map.tsx'
 import { clearSession, getSessionCode } from '#/lib/session.ts'
+import {
+  isNicknameWithinWordLimit,
+  MAX_NICKNAME_WORDS,
+  nicknameWordCount
+} from '#/lib/nickname.ts'
 import { api } from '../../convex/_generated/api'
 
 export const Route = createFileRoute('/where-scer')({
@@ -44,7 +49,6 @@ function WhereScerPage() {
   const updateNickname = useMutation(api.accounts.updateNickname)
   const [tab, setTab] = useState<Tab>('country')
   const mapStats = useQuery(api.checkins.mapStats, {
-    code: code ?? '',
     type: tab
   })
   const summary = useQuery(api.checkins.summary)
@@ -113,6 +117,10 @@ function WhereScerPage() {
 
   async function saveNickname() {
     if (!code) return
+    if (!isNicknameWithinWordLimit(nickname)) {
+      setNotice(`Nickname chỉ được tối đa ${MAX_NICKNAME_WORDS} từ.`)
+      return
+    }
     try {
       const account = await updateNickname({ code, nickname })
       setNickname(account.nickname)
@@ -134,6 +142,7 @@ function WhereScerPage() {
   if (mine === null) return null
 
   const mapProps = {
+    accountCode: code,
     activeStroke: 'var(--map-active-stroke)',
     activeStrokeWidth: 2,
     defaultFill: 'var(--map-default-fill)',
@@ -141,9 +150,6 @@ function WhereScerPage() {
     defaultStrokeWidth: 1,
     densityFills: DENSITY_FILLS,
     hoverFill: 'var(--map-hover-fill)',
-    peopleByLocation: Object.fromEntries(
-      (mapStats ?? []).map((stat) => [stat.code, stat.people])
-    ),
     selectionCounts: Object.fromEntries(
       (mapStats ?? []).map((stat) => [stat.code, stat.count])
     )
@@ -201,9 +207,14 @@ function WhereScerPage() {
             Nickname
             <div className="mt-2 flex gap-2">
               <Input
+                aria-describedby="dashboard-nickname-count"
                 maxLength={48}
                 value={nickname}
-                onChange={(event) => setNickname(event.target.value)}
+                onChange={(event) => {
+                  if (isNicknameWithinWordLimit(event.target.value)) {
+                    setNickname(event.target.value)
+                  }
+                }}
               />
               <Button
                 aria-label="Lưu nickname"
@@ -213,6 +224,12 @@ function WhereScerPage() {
                 <Save /> <span className="hidden sm:inline">Lưu</span>
               </Button>
             </div>
+            <span
+              className="mt-1 block text-xs font-normal text-muted-foreground"
+              id="dashboard-nickname-count"
+            >
+              {nicknameWordCount(nickname)}/{MAX_NICKNAME_WORDS} từ
+            </span>
           </label>
           <label className="block text-sm font-semibold">
             Mã account

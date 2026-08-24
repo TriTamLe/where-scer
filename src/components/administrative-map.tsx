@@ -1,4 +1,5 @@
 import { geoMercator, geoPath } from 'd3-geo'
+import { useQuery } from 'convex/react'
 import type { Feature, FeatureCollection, Geometry, Position } from 'geojson'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 
@@ -10,6 +11,7 @@ import {
 } from '#/hooks/use-selection-interest.ts'
 import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
 import { formatCheckinMessage } from '#/lib/checkin-copy.ts'
+import { api } from '../../convex/_generated/api'
 
 type AdministrativeProperties = {
   areaKm2?: number
@@ -63,6 +65,7 @@ const INSET_X = MAP_WIDTH - INSET_WIDTH - 22
 const DESKTOP_BREAKPOINT = '(min-width: 768px)'
 
 function AdministrativeMap({
+  accountCode,
   activeStroke,
   activeStrokeWidth,
   activeValues,
@@ -75,14 +78,16 @@ function AdministrativeMap({
   hoverFill,
   description,
   onChange,
-  peopleByLocation,
   selectionCounts,
   title,
   variant
 }: AdministrativeMapProps) {
   const id = useId()
   const isDesktop = useDesktopViewport()
-  const viewport = useMapViewport({ maxZoom: variant === 'province' ? 8 : 4 })
+  const viewport = useMapViewport({
+    basePan: isDesktop ? 0 : 0.5,
+    maxZoom: variant === 'province' ? 8 : 4
+  })
   const [containerRef, width] = useElementWidth<HTMLDivElement>()
   const [data, status, error] = useDeferredGeoData(dataUrl, containerRef)
   const [hoveredCode, setHoveredCode] = useState<string>('')
@@ -91,6 +96,15 @@ function AdministrativeMap({
   const selectionInterest = useSelectionInterest({
     selectionCounts
   })
+  const focusedCode = isDesktop
+    ? (tooltip?.feature.properties.code ?? '')
+    : aimedCode
+  const focusedPeople = useQuery(
+    api.checkins.locationPeople,
+    focusedCode
+      ? { code: accountCode, locationCode: focusedCode, type: variant }
+      : 'skip'
+  )
 
   const presentation = useMemo(
     () => createMapPresentation(data, variant),
@@ -302,16 +316,20 @@ function AdministrativeMap({
             activeValues={activeValues}
             feature={aimedCode ? featuresByCode.get(aimedCode) : undefined}
             getInterest={selectionInterest.getInterest}
-            locationKind={variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'}
-            peopleByLocation={peopleByLocation}
+            locationKind={
+              variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'
+            }
+            otherPeople={focusedPeople ?? []}
           />
         ) : null}
         {isDesktop && tooltip ? (
           <MapTooltip
             activeValues={activeValues}
             getInterest={selectionInterest.getInterest}
-            locationKind={variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'}
-            peopleByLocation={peopleByLocation}
+            locationKind={
+              variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'
+            }
+            otherPeople={focusedPeople ?? []}
             tooltip={tooltip}
           />
         ) : null}
@@ -539,12 +557,12 @@ function MapTooltip({
   activeValues,
   getInterest,
   locationKind,
-  peopleByLocation,
+  otherPeople,
   tooltip
 }: Pick<MapProps, 'activeValues'> & {
   getInterest: (value: string) => SelectionInterest
   locationKind: string
-  peopleByLocation: MapProps['peopleByLocation']
+  otherPeople: readonly string[]
   tooltip: TooltipState
 }) {
   const { code } = tooltip.feature.properties
@@ -562,7 +580,7 @@ function MapTooltip({
         {formatCheckinMessage({
           count: interest.count,
           locationKind,
-          otherPeople: peopleByLocation[code] ?? [],
+          otherPeople,
           selected
         })}
       </p>
@@ -588,12 +606,12 @@ function AdministrativeAimPanel({
   feature,
   getInterest,
   locationKind,
-  peopleByLocation
+  otherPeople
 }: Pick<MapProps, 'activeValues'> & {
   feature: AdministrativeFeature | undefined
   getInterest: (value: string) => SelectionInterest
   locationKind: string
-  peopleByLocation: MapProps['peopleByLocation']
+  otherPeople: readonly string[]
 }) {
   const code = feature?.properties.code ?? ''
   const interest = getInterest(code)
@@ -612,14 +630,14 @@ function AdministrativeAimPanel({
             {formatCheckinMessage({
               count: interest.count,
               locationKind,
-              otherPeople: peopleByLocation[code] ?? [],
+              otherPeople,
               selected
             })}
           </p>
         </>
       ) : (
         <p className="text-muted-foreground">
-          Đưa một địa điểm vào tâm ngắm để xem thông tin.
+          Kéo bản đồ để đưa khu vực vào tâm ngắm.
         </p>
       )}
     </div>
