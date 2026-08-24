@@ -174,6 +174,7 @@ function OnboardingPage() {
                   </Button>
                   <Button
                     disabled={isBusy}
+                    type="button"
                     variant="secondary"
                     onClick={() => setNickname(randomNickname())}
                   >
