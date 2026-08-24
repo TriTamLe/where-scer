@@ -9,11 +9,6 @@ import appCss from '../styles.css?url'
 
 import type { QueryClient } from '@tanstack/react-query'
 
-const runtimeConfig = JSON.stringify({
-  convexSiteUrl: import.meta.env.VITE_CONVEX_SITE_URL,
-  convexUrl: import.meta.env.VITE_CONVEX_URL
-}).replace(/</g, '\\u003c')
-
 interface MyRouterContext {
   queryClient: QueryClient
 }
@@ -56,11 +51,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `window.__WHERE_SCER_CONFIG__=${runtimeConfig};`
-          }}
-        />
         {children}
         <FaviconThemeSync />
         <Scripts />
