@@ -9,6 +9,7 @@ import {
   useSelectionInterest
 } from '#/hooks/use-selection-interest.ts'
 import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
+import { formatCheckinMessage } from '#/lib/checkin-copy.ts'
 
 type AdministrativeProperties = {
   areaKm2?: number
@@ -74,6 +75,7 @@ function AdministrativeMap({
   hoverFill,
   description,
   onChange,
+  peopleByLocation,
   selectionCounts,
   title,
   variant
@@ -300,12 +302,16 @@ function AdministrativeMap({
             activeValues={activeValues}
             feature={aimedCode ? featuresByCode.get(aimedCode) : undefined}
             getInterest={selectionInterest.getInterest}
+            locationKind={variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'}
+            peopleByLocation={peopleByLocation}
           />
         ) : null}
         {isDesktop && tooltip ? (
           <MapTooltip
             activeValues={activeValues}
             getInterest={selectionInterest.getInterest}
+            locationKind={variant === 'province' ? 'tỉnh/thành phố' : 'phường/xã'}
+            peopleByLocation={peopleByLocation}
             tooltip={tooltip}
           />
         ) : null}
@@ -532,9 +538,13 @@ function MapInset({
 function MapTooltip({
   activeValues,
   getInterest,
+  locationKind,
+  peopleByLocation,
   tooltip
 }: Pick<MapProps, 'activeValues'> & {
   getInterest: (value: string) => SelectionInterest
+  locationKind: string
+  peopleByLocation: MapProps['peopleByLocation']
   tooltip: TooltipState
 }) {
   const { code } = tooltip.feature.properties
@@ -549,13 +559,12 @@ function MapTooltip({
       <p className="font-semibold">{tooltip.feature.properties.fullName}</p>
       <p className="mt-0.5 text-muted-foreground">Mã: {code}</p>
       <p className="mt-0.5 text-muted-foreground">
-        {interest.count > 0
-          ? selected
-            ? interest.count === 1
-              ? 'Bạn đã đến đây'
-              : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
-            : `${interest.count} SC-ers đã đến đây`
-          : 'Chưa có SC-er nào check-in ở đây'}
+        {formatCheckinMessage({
+          count: interest.count,
+          locationKind,
+          otherPeople: peopleByLocation[code] ?? [],
+          selected
+        })}
       </p>
     </div>
   )
@@ -577,10 +586,14 @@ function MapCrosshair() {
 function AdministrativeAimPanel({
   activeValues,
   feature,
-  getInterest
+  getInterest,
+  locationKind,
+  peopleByLocation
 }: Pick<MapProps, 'activeValues'> & {
   feature: AdministrativeFeature | undefined
   getInterest: (value: string) => SelectionInterest
+  locationKind: string
+  peopleByLocation: MapProps['peopleByLocation']
 }) {
   const code = feature?.properties.code ?? ''
   const interest = getInterest(code)
@@ -596,13 +609,12 @@ function AdministrativeAimPanel({
           <p className="font-semibold">{feature.properties.fullName}</p>
           <p className="mt-0.5 text-muted-foreground">Mã: {code}</p>
           <p className="mt-0.5 text-muted-foreground">
-            {interest.count > 0
-              ? selected
-                ? interest.count === 1
-                  ? 'Bạn đã đến đây'
-                  : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
-                : `${interest.count} SC-ers đã đến đây`
-              : 'Chưa có SC-er nào check-in ở đây'}
+            {formatCheckinMessage({
+              count: interest.count,
+              locationKind,
+              otherPeople: peopleByLocation[code] ?? [],
+              selected
+            })}
           </p>
         </>
       ) : (

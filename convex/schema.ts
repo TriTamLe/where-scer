@@ -18,6 +18,7 @@ export default defineSchema({
   })
     .index('by_code', ['code'])
     .index('by_public_id', ['publicId'])
+    .index('by_updated_at', ['updatedAt'])
     .searchIndex('search_nickname', { searchField: 'nicknameSearch' }),
   checkins: defineTable({
     accountId: v.id('accounts'),

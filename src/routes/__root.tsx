@@ -9,6 +9,11 @@ import appCss from '../styles.css?url'
 
 import type { QueryClient } from '@tanstack/react-query'
 
+const runtimeConfig = JSON.stringify({
+  convexSiteUrl: import.meta.env.VITE_CONVEX_SITE_URL,
+  convexUrl: import.meta.env.VITE_CONVEX_URL
+}).replace(/</g, '\\u003c')
+
 interface MyRouterContext {
   queryClient: QueryClient
 }
@@ -45,15 +50,6 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const runtimeConfig = JSON.stringify({
-    convexSiteUrl:
-      typeof process === 'undefined'
-        ? undefined
-        : process.env.VITE_CONVEX_SITE_URL,
-    convexUrl:
-      typeof process === 'undefined' ? undefined : process.env.VITE_CONVEX_URL
-  }).replace(/</g, '\\u003c')
-
   return (
     <html lang="en">
       <head>

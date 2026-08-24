@@ -21,6 +21,7 @@ import {
   useSelectionInterest
 } from '#/hooks/use-selection-interest.ts'
 import type { SelectionInterest } from '#/hooks/use-selection-interest.ts'
+import { formatCheckinMessage } from '#/lib/checkin-copy.ts'
 
 type CountryProperties = {
   name?: string
@@ -77,6 +78,7 @@ function WorldMap({
   defaultStrokeWidth,
   hoverFill,
   onChange,
+  peopleByLocation,
   selectionCounts
 }: MapProps) {
   const id = useId()
@@ -240,6 +242,7 @@ function WorldMap({
                   formatCountryMessage(
                     point.datum,
                     activeValues,
+                    peopleByLocation,
                     selectionInterest
                   )
               }
@@ -258,6 +261,7 @@ function WorldMap({
       hoverFill,
       hoveredId,
       isDesktop,
+      peopleByLocation,
       rotation,
       selectionInterest,
       viewport.panX,
@@ -434,6 +438,7 @@ function WorldMap({
               activeValues={activeValues}
               country={aimedCountry}
               getInterest={selectionInterest.getInterest}
+              peopleByLocation={peopleByLocation}
             />
           </>
         ) : null}
@@ -465,20 +470,19 @@ function useDesktopViewport() {
 function formatCountryMessage(
   country: (typeof countries)[number],
   activeValues: readonly string[],
+  peopleByLocation: MapProps['peopleByLocation'],
   selectionInterest: { getInterest: (value: string) => SelectionInterest }
 ) {
   const code = String(country.id)
   const interest = selectionInterest.getInterest(code)
   const { flag, name } = country.properties
   const heading = flag ? `${flag} ${name}` : name
-  const count =
-    interest.count > 0
-      ? activeValues.includes(code)
-        ? interest.count === 1
-          ? 'Bạn đã đến đây'
-          : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
-        : `${interest.count} SC-ers đã đến đây`
-      : 'Chưa có SC-er nào check-in ở đây'
+  const count = formatCheckinMessage({
+    count: interest.count,
+    locationKind: 'quốc gia',
+    otherPeople: peopleByLocation[code] ?? [],
+    selected: activeValues.includes(code)
+  })
 
   return `${heading}\n${count}`
 }
@@ -499,10 +503,12 @@ function MapCrosshair() {
 function CountryAimPanel({
   activeValues,
   country,
-  getInterest
+  getInterest,
+  peopleByLocation
 }: Pick<MapProps, 'activeValues'> & {
   country: (typeof countries)[number] | undefined
   getInterest: (value: string) => SelectionInterest
+  peopleByLocation: MapProps['peopleByLocation']
 }) {
   const code = country?.id === undefined ? '' : String(country.id)
   const interest = getInterest(code)
@@ -520,13 +526,12 @@ function CountryAimPanel({
             {country.properties.name}
           </p>
           <p className="mt-0.5 text-muted-foreground">
-            {interest.count > 0
-              ? selected
-                ? interest.count === 1
-                  ? 'Bạn đã đến đây'
-                  : `Bạn và ${interest.count - 1} SC-ers khác đã đến đây`
-                : `${interest.count} SC-ers đã đến đây`
-              : 'Chưa có SC-er nào check-in ở đây'}
+            {formatCheckinMessage({
+              count: interest.count,
+              locationKind: 'quốc gia',
+              otherPeople: peopleByLocation[code] ?? [],
+              selected
+            })}
           </p>
         </>
       ) : (

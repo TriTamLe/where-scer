@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import 'tailwindcss';
+@import '../tokens.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -162,6 +163,11 @@
     min-height: 100%;
   }
 
+  html,
+  body {
+    overflow-x: clip;
+  }
+
   body {
     margin: 0;
     background: var(--background);
@@ -169,6 +175,11 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  button,
+  input {
+    font: inherit;
   }
 
   :focus-visible {
@@ -208,6 +219,77 @@
   .hljs-title,
   .hljs-variable {
     color: var(--secondary-strong);
+  }
+}
+
+@layer components {
+  .app-shell {
+    width: min(100%, 100rem);
+    margin-inline: auto;
+    padding: var(--space-md);
+  }
+
+  .eyebrow {
+    color: var(--secondary-strong);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .soft-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background: var(--card);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .map-workspace {
+    display: grid;
+    gap: var(--space-md);
+  }
+
+  .community-feed {
+    min-width: 0;
+  }
+
+  .selection-chip {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    background: var(--secondary-soft);
+    color: var(--foreground);
+    font-size: 0.75rem;
+    line-height: 1.25rem;
+    padding-inline: var(--space-xs);
+    white-space: nowrap;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .soft-panel[data-interactive='true']:hover {
+      border-color: var(--secondary-muted);
+      box-shadow: 0 12px 28px -18px rgb(4 3 22 / 0.36);
+      transform: translateY(-2px);
+    }
+  }
+
+  @media (min-width: 64rem) {
+    .app-shell {
+      padding: var(--space-xl);
+    }
+
+    .map-workspace {
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
+      align-items: start;
+    }
+
+    .community-feed {
+      position: sticky;
+      top: var(--space-lg);
+      max-height: calc(100dvh - var(--space-3xl));
+    }
   }
 }
 
