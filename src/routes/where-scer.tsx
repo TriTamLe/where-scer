@@ -22,8 +22,7 @@ import { WorldMap } from '#/components/world-map.tsx'
 import { clearSession, getSessionCode } from '#/lib/session.ts'
 import {
   isNicknameWithinWordLimit,
-  MAX_NICKNAME_WORDS,
-  nicknameWordCount
+  MAX_NICKNAME_WORDS
 } from '#/lib/nickname.ts'
 import { api } from '../../convex/_generated/api'
 
@@ -207,7 +206,6 @@ function WhereScerPage() {
             Nickname
             <div className="mt-2 flex gap-2">
               <Input
-                aria-describedby="dashboard-nickname-count"
                 maxLength={48}
                 value={nickname}
                 onChange={(event) => {
@@ -224,12 +222,6 @@ function WhereScerPage() {
                 <Save /> <span className="hidden sm:inline">Lưu</span>
               </Button>
             </div>
-            <span
-              className="mt-1 block text-xs font-normal text-muted-foreground"
-              id="dashboard-nickname-count"
-            >
-              {nicknameWordCount(nickname)}/{MAX_NICKNAME_WORDS} từ
-            </span>
           </label>
           <label className="block text-sm font-semibold">
             Mã account

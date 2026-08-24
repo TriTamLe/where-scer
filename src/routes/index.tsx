@@ -9,8 +9,7 @@ import { randomNickname } from '#/data/nicknames.ts'
 import { getSessionCode, setSessionCode } from '#/lib/session.ts'
 import {
   isNicknameWithinWordLimit,
-  MAX_NICKNAME_WORDS,
-  nicknameWordCount
+  MAX_NICKNAME_WORDS
 } from '#/lib/nickname.ts'
 import { api } from '../../convex/_generated/api'
 
@@ -236,7 +235,6 @@ function OnboardingPage() {
                 <label className="block text-sm font-semibold">
                   Nickname
                   <Input
-                    aria-describedby="onboarding-nickname-count"
                     className="mt-2"
                     maxLength={48}
                     value={nickname}
@@ -248,12 +246,6 @@ function OnboardingPage() {
                     placeholder="Ví dụ: Rái cá lấp lánh"
                     required
                   />
-                  <span
-                    className="mt-1 block text-xs font-normal text-muted-foreground"
-                    id="onboarding-nickname-count"
-                  >
-                    {nicknameWordCount(nickname)}/{MAX_NICKNAME_WORDS} từ
-                  </span>
                 </label>
                 <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                   <Button disabled={isBusy} size="lg" type="submit">
