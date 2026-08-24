@@ -43,11 +43,11 @@ function CommunityCheckinFeed({ code }: { code: string }) {
       aria-label="SC-ers đã check-in"
       className="community-feed soft-panel flex flex-col overflow-hidden"
     >
-      <div className="border-b border-divider bg-secondary-soft px-4 py-4 sm:px-5">
+      <div className="border-b border-divider bg-secondary-soft px-4 py-5 sm:px-5">
         <div className="flex items-center gap-3">
           <div
             aria-hidden="true"
-            className="grid size-10 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+            className="grid size-10 shrink-0 place-items-center rounded-[45%_55%_48%_52%] border border-secondary-strong bg-secondary text-white shadow-[0_4px_0_var(--secondary-strong)]"
           >
             <UsersRound className="size-5" />
           </div>
@@ -92,11 +92,14 @@ function CommunityPersonCard({
   }
 }) {
   return (
-    <li className="rounded-lg border border-divider bg-card p-3 transition-[background-color,border-color,transform] duration-200 ease-out">
+    <li
+      className="rounded-[var(--radius-card)] border border-divider bg-card p-3 transition-[background-color,border-color,box-shadow,transform] duration-[var(--dur-standard)] ease-out hover:border-secondary-muted hover:bg-secondary-soft hover:shadow-[var(--shadow-soft)] hover:-translate-y-0.5"
+      data-interactive="true"
+    >
       <div className="flex min-w-0 items-center gap-3">
         <div
           aria-hidden="true"
-          className="grid size-9 shrink-0 place-items-center rounded-full bg-primary-soft text-secondary-strong"
+          className="grid size-9 shrink-0 place-items-center rounded-[45%_55%_48%_52%] bg-primary-soft text-secondary-strong"
         >
           <MapPinned className="size-4" />
         </div>
@@ -104,7 +107,7 @@ function CommunityPersonCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate font-semibold">{person.nickname}</h3>
             {person.isCurrentUser ? (
-              <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+              <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground shadow-[0_2px_0_var(--primary-strong)]">
                 Bạn
               </span>
             ) : null}

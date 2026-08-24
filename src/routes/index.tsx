@@ -86,31 +86,33 @@ function OnboardingPage() {
   }
 
   return (
-    <main className="grid min-h-dvh place-items-center p-4 sm:p-6">
-      <section className="soft-panel w-full max-w-2xl overflow-hidden">
-        <div className="bg-secondary-soft px-6 py-7 sm:px-10 sm:py-9">
-          <div className="flex items-start gap-4">
-            <div
-              aria-hidden="true"
-              className="grid size-12 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
-            >
-              <Sparkles className="size-5" />
-            </div>
-            <div>
-              <p className="eyebrow">Where SC-er</p>
-              <h1 className="mt-2 text-[var(--text-display-s)] leading-tight font-bold">
-                Đánh dấu nơi hành trình của bạn đi qua.
-              </h1>
-              <p className="mt-3 max-w-lg text-muted-foreground">
-                Một bản đồ nhỏ để cả nhà mình nhìn thấy nhau đang ở đâu và đã đi
-                những đâu.
-              </p>
-            </div>
+    <main className="grid min-h-dvh place-items-center overflow-hidden bg-background p-4 sm:p-6">
+      <section className="soft-panel grid w-full max-w-5xl overflow-hidden lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)]">
+        <div className="relative bg-secondary-soft px-6 py-8 sm:px-10 sm:py-11">
+          <div
+            className="hum-character"
+            data-happy={message.startsWith('Chính xác')}
+          >
+            <span className="sr-only">Dấu mốc hành trình</span>
+          </div>
+          <div className="mt-10 max-w-xl">
+            <p className="eyebrow">Where SC-er?</p>
+            <h1 className="mt-3 text-[var(--text-display)] leading-[0.98] font-semibold tracking-[-0.035em]">
+              Đánh dấu nơi hành trình của bạn đi qua.
+            </h1>
+            <p className="mt-5 max-w-lg leading-7 text-muted-foreground">
+              Một bản đồ nhỏ để cả nhà mình nhìn thấy nhau đang ở đâu và đã đi
+              những đâu.
+            </p>
+          </div>
+          <div className="mt-10 flex items-center gap-3 text-sm font-semibold text-secondary-strong">
+            <Sparkles aria-hidden="true" className="size-4" />
+            <span>Chọn một điểm, để lại một dấu mốc.</span>
           </div>
         </div>
-        <div className="px-6 py-7 sm:px-10 sm:py-9">
+        <div className="bg-card px-6 py-8 sm:px-10 sm:py-11">
           <div className="flex items-center gap-3 text-sm font-semibold text-muted-foreground">
-            <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground">
+            <span className="grid size-8 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_3px_0_var(--primary-strong)]">
               {step}
             </span>
             <span>
@@ -121,7 +123,7 @@ function OnboardingPage() {
           </div>
           {step === 1 ? (
             <>
-              <h2 className="mt-5 text-2xl font-bold">
+              <h2 className="mt-6 text-2xl font-semibold tracking-[-0.025em]">
                 Vui lòng nhập 2 câu, 8 chữ mà mọi SC-er đều biết.
               </h2>
               <p className="mt-2 text-muted-foreground">
@@ -148,7 +150,7 @@ function OnboardingPage() {
             </>
           ) : (
             <>
-              <h2 className="mt-5 text-2xl font-bold">
+              <h2 className="mt-6 text-2xl font-semibold tracking-[-0.025em]">
                 Cho mình xin một cái nickname nhé.
               </h2>
               <p className="mt-2 text-muted-foreground">
@@ -179,7 +181,7 @@ function OnboardingPage() {
                   </Button>
                 </div>
               </form>
-              <div className="my-7 border-t border-divider" />
+              <div className="my-7 border-t border-dashed border-divider" />
               <h2 className="text-lg font-semibold">Đã có mã từ trước?</h2>
               <form
                 className="mt-3 flex flex-col gap-3 sm:flex-row"
@@ -202,7 +204,7 @@ function OnboardingPage() {
           {message ? (
             <p
               aria-live="polite"
-              className={`mt-5 rounded-lg border px-4 py-3 text-sm font-medium ${message.startsWith('Chính xác') ? 'border-success bg-success-background text-success' : 'border-destructive bg-destructive-background text-destructive'}`}
+              className={`mt-5 rounded-[var(--radius-input)] border px-4 py-3 text-sm font-medium ${message.startsWith('Chính xác') ? 'border-success bg-success-background text-success' : 'border-destructive bg-destructive-background text-destructive'}`}
             >
               {message}
             </p>

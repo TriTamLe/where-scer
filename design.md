@@ -1,34 +1,34 @@
-# Design — Where SC-er
+# Design — Where SC-er?
 
 ## Genre
 
-Playful product workspace: warm, energetic, and practical for SC-ers sharing
-where they have checked in.
+Hum: a playful, alive community map for SC-ers. It is warm and bright, never
+childish or visually noisy.
 
 ## Macrostructure family
 
-- Entry route: invitation flow with one focused action at a time.
-- App route: Workbench — account context, map as the primary canvas, and a
-  community feed as the supporting workspace.
+- Entry route: off-centre invitation split with a small reacting map mark.
+- App route: Map / Diagram — the live map is the main composition; profile
+  nodes, community activity, and a future-news sign-up orbit it.
 
 ## Theme and typography
 
-- Keep the SClub yellow, blue, and red semantic palette defined in
-  `public/docs/design-system.md`.
-- Display and body: Be Vietnam Pro. Mono metadata: JetBrains Mono.
-- Use named tokens only; colour is functional before decorative.
+- Cream paper, pear primary actions, cyan community surfaces, and coral only
+  for emphatic success and the wishlist invitation.
+- Display/body: Plus Jakarta Sans. Metadata: JetBrains Mono.
+- Use semantic named tokens only; no decorative gradients.
 
 ## Layout and motion
 
-- Four-point spacing scale; cards use a 12px radius and borders before shadows.
-- Desktop dashboard: map and community feed sit side-by-side. Mobile: map,
-  then feed, then supporting actions.
-- Motion is limited to 200ms surface/transform feedback and honours reduced
-  motion. Focus rings are always visible for keyboard navigation.
+- Four-point spacing scale; 20px cards, 12px inputs, fully pill-shaped actions.
+- Desktop: map canvas and community stream share one spatial composition.
+  Mobile: profile, map, stream, then wishlist in reading order.
+- Buttons lift then physically press down. Cards tint and lift on hover.
+  Reduced motion removes transforms, counter animation, and celebration.
 
 ## Shared component voice
 
-- Primary actions use yellow fill with dark text; secondary actions use soft
-  blue surfaces; destructive/error states use red with supporting copy.
-- Community rows show a nickname, a clear "Bạn" marker for the current user,
-  and grouped selection chips. No fabricated metrics or decorative chrome.
+- Primary actions have a pear face and solid lower edge; secondary actions are
+  cyan-soft; destructive/error states are coral.
+- One CSS character mark appears only at entry and reacts on successful action.
+- Community rows retain nickname, “Bạn”, and grouped check-in selections.

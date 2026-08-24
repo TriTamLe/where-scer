@@ -25,7 +25,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1'
       },
       {
-        title: 'Where Sc-er'
+        title: 'Where SC-er?'
       }
     ],
     links: [
@@ -52,39 +52,34 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        <FaviconThemeSync />
+        <BrowserThemeSync />
         <Scripts />
       </body>
     </html>
   )
 }
 
-function FaviconThemeSync() {
+function BrowserThemeSync() {
   useEffect(() => {
     const root = document.documentElement
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
 
-    function syncFavicon() {
+    function syncTheme() {
+      root.dataset.theme = colorScheme.matches ? 'dark' : 'light'
+
       const favicon = document.querySelector<HTMLLinkElement>('#site-favicon')
 
       if (!favicon) return
 
-      const isDark =
-        root.dataset.theme === 'dark' || root.classList.contains('dark')
-
-      favicon.href = isDark
+      favicon.href = colorScheme.matches
         ? '/images/favicon.dark.svg'
         : '/images/favicon.light.svg'
     }
 
-    syncFavicon()
+    syncTheme()
+    colorScheme.addEventListener('change', syncTheme)
 
-    const observer = new MutationObserver(syncFavicon)
-    observer.observe(root, {
-      attributes: true,
-      attributeFilter: ['class', 'data-theme']
-    })
-
-    return () => observer.disconnect()
+    return () => colorScheme.removeEventListener('change', syncTheme)
   }, [])
 
   return null

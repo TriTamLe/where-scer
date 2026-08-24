@@ -1,0 +1,8 @@
+{
+  "date": "2026-08-24",
+  "framework": "React 19 + TanStack Start + Vite",
+  "styling": "Tailwind CSS 4 with semantic CSS variables",
+  "motion": "motion-cut; CSS transitions only",
+  "spacing": "four-point token scale",
+  "decision": "Replaced the prior SClub visual system with the Hallmark Hum system by explicit user request."
+}

@@ -14,6 +14,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { CommunityCheckinFeed } from '#/components/community-checkin-feed.tsx'
 import { DanangMap } from '#/components/danang-map.tsx'
+import { WishlistSignup } from '#/components/wishlist-signup.tsx'
 import { Button } from '#/components/ui/button.tsx'
 import { Input } from '#/components/ui/input.tsx'
 import { VietnamMap } from '#/components/vietnam-map.tsx'
@@ -29,10 +30,10 @@ type Tab = 'country' | 'province' | 'ward'
 type ExportData = Record<Tab, Array<{ code: string; count: number }>>
 
 const DENSITY_FILLS = [
-  'var(--primary-soft)',
-  'var(--primary-muted)',
-  'var(--primary)',
-  'var(--primary-strong)'
+  'var(--map-density-1)',
+  'var(--map-density-2)',
+  'var(--map-density-3)',
+  'var(--map-density-4)'
 ] as const
 
 function WhereScerPage() {
@@ -133,13 +134,13 @@ function WhereScerPage() {
   if (mine === null) return null
 
   const mapProps = {
-    activeStroke: 'var(--map-border)',
+    activeStroke: 'var(--map-active-stroke)',
     activeStrokeWidth: 2,
-    defaultFill: 'var(--background)',
+    defaultFill: 'var(--map-default-fill)',
     defaultStroke: 'var(--map-border-muted)',
     defaultStrokeWidth: 1,
     densityFills: DENSITY_FILLS,
-    hoverFill: 'var(--primary-muted)',
+    hoverFill: 'var(--map-hover-fill)',
     peopleByLocation: Object.fromEntries(
       (mapStats ?? []).map((stat) => [stat.code, stat.people])
     ),
@@ -149,50 +150,53 @@ function WhereScerPage() {
   }
 
   return (
-    <main className="app-shell space-y-6 sm:space-y-8">
-      <header className="soft-panel overflow-hidden">
-        <div className="border-b border-divider bg-secondary-soft px-4 py-5 sm:px-6 sm:py-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-              <div
-                aria-hidden="true"
-                className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+    <main className="app-shell space-y-7 sm:space-y-9">
+      <header className="soft-panel overflow-hidden p-4 sm:p-6">
+        <div className="dashboard-top-grid">
+          <section className="min-w-0 bg-secondary-soft px-4 py-5 sm:px-6 sm:py-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                <div
+                  aria-hidden="true"
+                  className="grid size-12 shrink-0 place-items-center rounded-[45%_55%_48%_52%] border border-primary-strong bg-primary text-primary-foreground shadow-[0_5px_0_var(--primary-strong)]"
+                >
+                  <MapPinned className="size-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="eyebrow">Where SC-er?</p>
+                  <h1 className="mt-1 overflow-wrap-anywhere text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">
+                    Chào, {mine.account.nickname}!
+                  </h1>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Bản đồ nhỏ ghi lại hành trình của cả nhà mình.
+                  </p>
+                </div>
+              </div>
+              <Button
+                className="self-start"
+                variant="ghost"
+                onClick={() => {
+                  clearSession()
+                  setCode(null)
+                }}
               >
-                <MapPinned className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="eyebrow">Where SC-er</p>
-                <h1 className="mt-1 overflow-wrap-anywhere text-2xl font-bold sm:text-3xl">
-                  Chào, {mine.account.nickname}!
-                </h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Bản đồ nhỏ ghi lại hành trình của cả nhà mình.
-                </p>
-              </div>
+                <LogOut /> Đổi account
+              </Button>
             </div>
-            <Button
-              className="self-start"
-              variant="ghost"
-              onClick={() => {
-                clearSession()
-                setCode(null)
-              }}
-            >
-              <LogOut /> Đổi account
-            </Button>
-          </div>
-          <dl className="mt-5 grid grid-cols-2 gap-3 sm:max-w-md">
-            <Metric
-              label="SC-ers đã check-in"
-              value={summary?.checkedInMemberCount ?? '—'}
-            />
-            <Metric
-              label="Quốc gia đã check-in"
-              value={summary?.checkedInCountryCount ?? '—'}
-            />
-          </dl>
+            <dl className="mt-6 grid grid-cols-2 gap-3 sm:max-w-lg">
+              <Metric
+                label="SC-ers đã check-in"
+                value={summary?.checkedInMemberCount ?? '—'}
+              />
+              <Metric
+                label="Quốc gia đã check-in"
+                value={summary?.checkedInCountryCount ?? '—'}
+              />
+            </dl>
+          </section>
+          <WishlistSignup variant="aside" />
         </div>
-        <div className="grid gap-4 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+        <div className="mt-4 grid gap-4 border-t border-dashed border-divider pt-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
           <label className="block text-sm font-semibold">
             Nickname
             <div className="mt-2 flex gap-2">
@@ -235,7 +239,7 @@ function WhereScerPage() {
         className="map-workspace"
         aria-label="Bản đồ và cộng đồng check-in"
       >
-        <div className="soft-panel min-w-0 p-3 sm:p-5">
+        <div className="hum-map-stage soft-panel min-w-0 p-3 pt-8 sm:p-5 sm:pt-10">
           <div
             className="grid grid-cols-3 gap-2"
             role="tablist"
@@ -260,6 +264,7 @@ function WhereScerPage() {
               </Button>
             ))}
           </div>
+          <MapActivityLegend />
           <div className="mt-5">
             {tab === 'country' ? (
               <WorldMap
@@ -299,11 +304,37 @@ function WhereScerPage() {
   )
 }
 
+function MapActivityLegend() {
+  return (
+    <div
+      aria-label="Chú giải mức hoạt động trên bản đồ"
+      className="map-activity-legend mt-4"
+    >
+      <span className="text-xs font-semibold text-muted-foreground">
+        Mức hoạt động
+      </span>
+      <div aria-hidden="true" className="flex items-center gap-1.5">
+        {[1, 2, 3, 4].map((level) => (
+          <span
+            className={`map-level-dot map-level-dot--${level}`}
+            key={level}
+          />
+        ))}
+      </div>
+      <span className="text-xs text-muted-foreground">Thấp → cao</span>
+    </div>
+  )
+}
+
 function Metric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-3">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-2xl font-bold tabular-nums">{value}</dd>
+    <div className="hum-stat-node px-3 py-3 sm:px-4">
+      <dt className="text-xs font-semibold tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-1 text-3xl font-semibold tracking-[-0.04em] tabular-nums">
+        {value}
+      </dd>
     </div>
   )
 }

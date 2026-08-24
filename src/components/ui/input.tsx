@@ -8,9 +8,9 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
       type={type}
       data-slot="input"
       className={cn(
-        'h-11 w-full min-w-0 rounded-md border border-input bg-card px-4 text-base text-foreground transition-[border-color,box-shadow] outline-none selection:bg-primary-muted selection:text-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
-        'hover:border-secondary-muted focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive',
+        'h-11 w-full min-w-0 rounded-[var(--radius-input)] border border-input bg-card px-4 text-base text-foreground transition-[border-color,box-shadow,background-color] outline-none selection:bg-primary-muted selection:text-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100',
+        'hover:border-secondary-muted hover:bg-secondary-soft focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+        'aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive data-[state=loading]:cursor-wait data-[state=loading]:bg-muted data-[state=success]:border-success data-[state=error]:border-destructive',
         className
       )}
       {...props}

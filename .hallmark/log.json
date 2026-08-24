@@ -2,6 +2,14 @@
   {
     "date": "2026-08-24",
     "scope": "app",
+    "macrostructure": "Map / Diagram",
+    "theme": "Hum",
+    "enrichment": "CSS character mark",
+    "brief": "Where SC-er Hum redesign with restored email wishlist"
+  },
+  {
+    "date": "2026-08-24",
+    "scope": "app",
     "macrostructure": "Workbench",
     "theme": "SClub",
     "enrichment": "none",

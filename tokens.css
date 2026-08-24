@@ -1,4 +1,6 @@
-/* Hallmark · genre: playful · macrostructure: Workbench · theme: SClub · designed-as-app */
+/* Hallmark · pre-emit critique: P5 H4 E5 S4 R4 V5
+ * genre: playful · macrostructure: Map / Diagram · theme: Hum · designed-as-app
+ */
 :root {
   --space-3xs: 0.25rem;
   --space-2xs: 0.5rem;
@@ -9,16 +11,18 @@
   --space-xl: 2.5rem;
   --space-2xl: 3rem;
   --space-3xl: 4rem;
-  --text-display: clamp(2rem, 4vw, 3.25rem);
-  --text-display-s: clamp(1.75rem, 3vw, 2.5rem);
-  --dur-short: 100ms;
-  --dur-standard: 200ms;
-  --dur-panel: 300ms;
+  --text-display: clamp(2.6rem, 6vw, 5rem);
+  --text-display-s: clamp(2rem, 4vw, 3.25rem);
+  --dur-short: 140ms;
+  --dur-standard: 220ms;
+  --dur-panel: 420ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-  --radius-input: 0.5rem;
-  --radius-card: 0.75rem;
+  --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --radius-input: 0.75rem;
+  --radius-card: 1.25rem;
   --radius-pill: 999px;
-  --shadow-soft: 0 8px 24px -16px rgb(4 3 22 / 0.28);
+  --shadow-soft: 0 14px 32px -18px oklch(20% 0.012 250 / 0.24);
+  --shadow-lift: 0 22px 42px -20px oklch(20% 0.012 250 / 0.3);
 }
