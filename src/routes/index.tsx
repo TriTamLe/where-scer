@@ -28,22 +28,36 @@ function OnboardingPage() {
   const [loginCode, setLoginCode] = useState('')
   const [message, setMessage] = useState('')
   const [isBusy, setIsBusy] = useState(false)
+  const isPhraseComplete = answer === CLUB_PHRASE
+  const correctCharacterCount = [...answer].filter(
+    (character, index) => character === CLUB_PHRASE[index]
+  ).length
+  const hasPhraseMismatch = [...answer].some(
+    (character, index) => character !== CLUB_PHRASE[index]
+  )
 
   useEffect(() => {
     if (getSessionCode()) navigate({ to: '/where-scer', replace: true })
   }, [navigate])
 
-  function handlePhrase(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (answer.trim().toLowerCase() !== CLUB_PHRASE) {
-      setMessage('Chưa đúng rồi bạn ơi, thử lại nhé.')
-      return
-    }
+  useEffect(() => {
+    if (!isPhraseComplete || step !== 1) return
+
     setMessage('Chính xác rồi, mình cùng đánh dấu hành trình nhé.')
-    window.setTimeout(() => {
+    const timeout = window.setTimeout(() => {
       setMessage('')
       setStep(2)
     }, 650)
+
+    return () => window.clearTimeout(timeout)
+  }, [isPhraseComplete, step])
+
+  function handlePhrase(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!isPhraseComplete) {
+      setMessage('Hãy chỉnh các ký tự màu coral trước nhé.')
+      return
+    }
   }
 
   async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
@@ -133,27 +147,79 @@ function OnboardingPage() {
           {step === 1 ? (
             <>
               <h2 className="mt-6 text-2xl font-semibold tracking-[-0.025em]">
-                Vui lòng nhập 2 câu, 8 chữ mà mọi SC-er đều biết. Gợi ý là
-                "Tạo..."
+                Cùng bắt đầu bằng một câu quen thuộc nhé.
               </h2>
               <p className="mt-2 text-muted-foreground">
-                Viết liền, không dấu nhé.
+                Gợi ý là “Tạo...”. Viết liền, chữ thường và không dấu nhé.
               </p>
               <form
                 className="mt-6 flex flex-col gap-3"
                 onSubmit={handlePhrase}
               >
-                <label className="text-sm font-semibold">
-                  Câu trả lời
-                  <Input
-                    autoFocus
-                    className="mt-2"
-                    value={answer}
-                    onChange={(event) => setAnswer(event.target.value)}
-                    placeholder="Viết câu trả lời ở đây"
-                  />
+                <label className="text-sm font-semibold" htmlFor="club-phrase">
+                  Gõ câu trả lời
                 </label>
-                <Button className="w-full sm:w-fit" size="lg" type="submit">
+                <div className="relative rounded-[var(--radius-input)] border border-input bg-card focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 flex flex-wrap content-start gap-x-0.5 gap-y-2 px-3 py-3 font-mono text-base leading-7 tracking-wide"
+                  >
+                    {Array.from({ length: CLUB_PHRASE.length }, (_, index) => {
+                      const character = answer.charAt(index)
+                      const hasCharacter = character !== ''
+                      const isCorrect =
+                        hasCharacter && character === CLUB_PHRASE[index]
+                      const isIncorrect = hasCharacter && !isCorrect
+
+                      return (
+                        <span
+                          className={`min-w-[0.68em] border-b-2 text-center ${isCorrect ? 'border-success text-success' : isIncorrect ? 'border-destructive text-destructive' : 'border-border text-transparent'}`}
+                          key={index}
+                        >
+                          {!hasCharacter || character === ' '
+                            ? '\u00a0'
+                            : character}
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <textarea
+                    aria-describedby="club-phrase-help club-phrase-status"
+                    aria-invalid={hasPhraseMismatch}
+                    autoCapitalize="none"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoFocus
+                    className="relative block min-h-32 w-full resize-none border-0 bg-transparent px-3 py-3 font-mono text-base leading-7 tracking-wide text-transparent caret-foreground outline-none selection:bg-secondary-muted"
+                    id="club-phrase"
+                    maxLength={CLUB_PHRASE.length}
+                    onChange={(event) => {
+                      setAnswer(event.target.value)
+                      if (message) setMessage('')
+                    }}
+                    spellCheck={false}
+                    value={answer}
+                  />
+                </div>
+                <p
+                  className="text-sm text-muted-foreground"
+                  id="club-phrase-help"
+                >
+                  Mỗi ký tự đúng sẽ chuyển xanh; ký tự coral cần được chỉnh lại.
+                </p>
+                <p
+                  aria-live="polite"
+                  className="text-sm font-medium text-muted-foreground"
+                  id="club-phrase-status"
+                >
+                  {correctCharacterCount}/{CLUB_PHRASE.length} ký tự đúng
+                </p>
+                <Button
+                  className="w-full sm:w-fit"
+                  disabled={!isPhraseComplete}
+                  size="lg"
+                  type="submit"
+                >
                   Tiếp tục <ArrowRight />
                 </Button>
               </form>
